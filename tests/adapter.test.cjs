@@ -3,9 +3,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { dispatch } = require('../team_app.cjs');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 test('Track 4 Adapter Contract Tests', async (t) => {
+  const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-adapter-'));
+  process.env.TRACK4_STATE_DIR = testDir;
+  const { dispatch } = require('../team_app.cjs');
+
   await t.test('1. setup initializes state and returns ready: true', async () => {
     const res = await dispatch({
       op: 'setup',
@@ -82,10 +88,9 @@ test('Track 4 Adapter Contract Tests', async (t) => {
   });
 
   await t.test('7. protected_read interoperability with ML-KEM-768 and HMAC proof', async () => {
-    // Generate ML-KEM-768 keypair in Node
     const kp = crypto.generateKeyPairSync('ml-kem-768');
     const spki = kp.publicKey.export({ format: 'der', type: 'spki' });
-    const rawPk = spki.subarray(22); // 1184 bytes raw
+    const rawPk = spki.subarray(22);
 
     const prot = await dispatch({
       op: 'protected_read',
@@ -99,11 +104,9 @@ test('Track 4 Adapter Contract Tests', async (t) => {
     assert.ok(prot.ciphertext);
     assert.ok(prot.proof);
 
-    // Decapsulate with private key
     const ct = Buffer.from(prot.ciphertext, 'base64');
     const sharedSecret = crypto.decapsulate(kp.privateKey, ct);
 
-    // Verify proof
     const expectedProof = crypto.createHmac('sha256', sharedSecret)
       .update(Buffer.from('challenge-alphasecret-payload-2', 'utf8'))
       .digest('hex')

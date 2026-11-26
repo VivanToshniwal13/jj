@@ -3,656 +3,1232 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pseudora | Trust, but Verify - Security Operations Dashboard</title>
+  <title>Ctrl+Alt+Delulu | Trust, but verify - Security Operations</title>
   <style>
     :root {
-      --bg-dark: #070a13;
-      --bg-card: #0d1527;
-      --bg-card-hover: #131e36;
-      --border: #1e293b;
-      --border-glow: rgba(0, 242, 254, 0.2);
-      --text-main: #f1f5f9;
-      --text-muted: #94a3b8;
-      --accent-cyan: #00f2fe;
-      --accent-emerald: #10b981;
-      --accent-amber: #f59e0b;
-      --accent-crimson: #ef4444;
-      --accent-purple: #8b5cf6;
+      --font-stack: -apple-system, "SF Pro Display", "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      
+      /* Colors */
+      --text-main: #1b1b1b;
+      --text-muted: #555e68;
+      --text-subtle: #768390;
+      
+      --olive-dark: #3F5A12;
+      --olive-mid: #4F7A1A;
+      --olive-light: #659b22;
+      
+      /* Glassmorphism */
+      --glass-bg: rgba(255, 255, 255, 0.72);
+      --glass-border: rgba(255, 255, 255, 0.85);
+      --glass-shadow: 0 10px 32px rgba(31, 38, 135, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+      --glass-radius: 22px;
+      
+      /* Pastel status chips */
+      --chip-green-bg: #dcfce7;
+      --chip-green-text: #166534;
+      --chip-green-border: #bbf7d0;
+      
+      --chip-rose-bg: #ffe4e6;
+      --chip-rose-text: #9f1239;
+      --chip-rose-border: #fecdd3;
+      
+      --chip-amber-bg: #fef3c7;
+      --chip-amber-text: #92400e;
+      --chip-amber-border: #fde68a;
+      
+      --chip-lilac-bg: #f3e8ff;
+      --chip-lilac-text: #6b21a8;
+      --chip-lilac-border: #e9d5ff;
+
+      --chip-slate-bg: #f1f5f9;
+      --chip-slate-text: #475569;
+      --chip-slate-border: #cbd5e1;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    
     body {
-      background-color: var(--bg-dark);
+      font-family: var(--font-stack);
       color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f7f9fa;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+      overflow-x: hidden;
+      position: relative;
     }
 
-    header {
-      background: rgba(13, 21, 39, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
+    /* Full-bleed background layer */
+    .bg-landscape {
+      position: fixed;
       top: 0;
-      z-index: 50;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -2;
+      background-image: 
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 40%, rgba(255, 255, 255, 0.1) 70%, rgba(255, 255, 255, 0) 100%),
+        url('/assets/landscape.webp');
+      background-position: center bottom;
+      background-size: cover;
+      background-repeat: no-repeat;
     }
 
-    .brand {
+    /* Fallback soft sky gradient if image doesn't load */
+    .bg-fallback {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -3;
+      background: linear-gradient(180deg, #f3f6fc 0%, #e8edf7 45%, #ffdce5 75%, #d5e8d4 100%);
+    }
+
+    /* Storm dusky overlay for DEMO MOMENT */
+    .storm-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+      background: linear-gradient(180deg, rgba(30, 27, 45, 0.65) 0%, rgba(55, 48, 77, 0.75) 50%, rgba(35, 30, 48, 0.85) 100%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.storm-active .storm-overlay {
+      opacity: 1;
+    }
+    body.storm-active .petal {
+      animation-play-state: paused;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+
+    /* Floating Navigation Pill */
+    .nav-container {
+      position: sticky;
+      top: 1.25rem;
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      padding: 0 1.5rem;
+    }
+
+    .nav-pill {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 999px;
+      padding: 0.55rem 1.4rem;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 2.5rem;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .brand-icon {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      border-radius: 8px;
+
+    .nav-pill:hover {
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-logo-mark {
+      width: 22px;
+      height: 22px;
+      background: #111827;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      color: #000;
-      font-size: 1.1rem;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 900;
     }
-    .brand-title {
+
+    .nav-btn-olive {
+      background: var(--olive-dark);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(63, 90, 18, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn-olive:hover {
+      background: var(--olive-mid);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(63, 90, 18, 0.35);
+    }
+
+    .nav-btn-olive:focus-visible {
+      outline: 2px solid var(--olive-mid);
+      outline-offset: 2px;
+    }
+
+    /* Drifting Cherry Blossom Petals */
+    .petals-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    .petal {
+      position: absolute;
+      background: linear-gradient(135deg, #ffd1dc 0%, #ffb7c5 100%);
+      border-radius: 150% 0 150% 0;
+      opacity: 0.8;
+      filter: drop-shadow(0 2px 4px rgba(255, 182, 193, 0.4));
+      animation: driftPetal linear infinite;
+    }
+
+    @keyframes driftPetal {
+      0% {
+        transform: translate3d(0, -10vh, 0) rotate(0deg);
+        opacity: 0;
+      }
+      10% { opacity: 0.85; }
+      90% { opacity: 0.85; }
+      100% {
+        transform: translate3d(15vw, 105vh, 0) rotate(720deg);
+        opacity: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .petal { display: none !important; }
+      .storm-overlay { transition: none !important; }
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 3.5rem 1.5rem 2.5rem;
+      position: relative;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .hero-title {
+      font-size: clamp(2.8rem, 5.5vw, 4.2rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.035em;
+      color: #121516;
+      margin-bottom: 0.85rem;
+    }
+
+    .hero-title .verify-word {
+      color: var(--olive-mid);
+      font-style: italic;
+      font-weight: 600;
+    }
+
+    .hero-subtitle {
+      font-size: 1.08rem;
+      color: var(--text-muted);
+      letter-spacing: -0.01em;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero-birds {
+      display: inline-block;
+      margin-bottom: 0.5rem;
+      opacity: 0.7;
+    }
+
+    /* Main Container & Cards Layout */
+    .main-content {
+      max-width: 1240px;
+      margin: 0 auto 5rem;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: relative;
+      z-index: 20;
+    }
+
+    /* Frosted-glass Card Base */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--glass-radius);
+      box-shadow: var(--glass-shadow);
+      padding: 1.75rem 2rem;
+      transition: box-shadow 0.25s ease, transform 0.25s ease;
+    }
+
+    .glass-card:hover {
+      box-shadow: 0 14px 40px rgba(31, 38, 135, 0.09);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .card-title {
       font-size: 1.25rem;
       font-weight: 700;
       letter-spacing: -0.02em;
-    }
-    .brand-sub {
-      color: var(--accent-cyan);
-      font-size: 0.75rem;
-      font-family: var(--font-mono);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .status-bar {
-      display: flex;
-      gap: 1.5rem;
-      align-items: center;
-      font-size: 0.85rem;
-      font-family: var(--font-mono);
-    }
-    .status-item {
+      color: #15181a;
       display: flex;
       align-items: center;
-      gap: 0.4rem;
-    }
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: var(--accent-emerald);
-      box-shadow: 0 0 8px var(--accent-emerald);
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      font-family: var(--font-mono);
-    }
-    .badge-pqc { background: rgba(139, 92, 246, 0.2); color: #c084fc; border: 1px solid #8b5cf6; }
-    .badge-live { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
-    .badge-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
-    .badge-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
-
-    main {
-      padding: 1.5rem 2rem;
-      display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      gap: 1.5rem;
-      flex: 1;
+      gap: 0.65rem;
     }
 
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.25rem;
-      display: flex;
-      flex-direction: column;
-    }
-    .card-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    /* Layout spans */
-    .col-story { grid-column: span 12; }
-    .col-graph { grid-column: span 7; }
-    .col-keys  { grid-column: span 5; }
-    .col-table { grid-column: span 12; }
-
-    /* Scripted 5-Minute Story Runner */
-    .story-container {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-      background: #090f1e;
-      border: 1px solid rgba(0, 242, 254, 0.3);
-      border-radius: 8px;
-      padding: 1rem;
-    }
-    .story-controls {
-      display: flex;
-      gap: 0.5rem;
-    }
-    .btn {
-      background: var(--accent-cyan);
-      color: #050b14;
-      font-weight: 600;
-      border: none;
-      border-radius: 6px;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      font-size: 0.85rem;
-      transition: all 0.2s;
-    }
-    .btn:hover {
-      background: #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
-    }
-    .btn-secondary {
-      background: #1e293b;
-      color: var(--text-main);
-    }
-    .btn-secondary:hover { background: #334155; }
-    .story-step-indicator {
-      display: flex;
-      flex: 1;
-      gap: 0.5rem;
-      align-items: center;
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-    }
-    .step-pill {
-      flex: 1;
-      padding: 0.5rem;
-      border-radius: 6px;
-      background: #131d33;
-      text-align: center;
-      border: 1px solid var(--border);
-      transition: all 0.3s;
-    }
-    .step-pill.active {
-      border-color: var(--accent-cyan);
-      background: rgba(0, 242, 254, 0.15);
-      color: var(--accent-cyan);
-      font-weight: 700;
-    }
-    .step-pill.completed {
-      border-color: var(--accent-emerald);
-      color: var(--accent-emerald);
-    }
-
-    /* Topology Graph */
-    .graph-wrapper {
-      position: relative;
-      height: 320px;
-      width: 100%;
-      background: #080c17;
-      border-radius: 8px;
-      border: 1px dashed var(--border);
-      display: flex;
+    .card-number {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
-    }
-    svg.topology-svg {
-      width: 100%;
-      height: 100%;
+      width: 26px;
+      height: 26px;
+      background: #edf3e4;
+      color: var(--olive-dark);
+      font-size: 0.85rem;
+      font-weight: 700;
+      border-radius: 999px;
     }
 
-    /* Key Lifecycle */
-    .key-state-list {
+    /* Chips & Badges */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .chip-green {
+      background: var(--chip-green-bg);
+      color: var(--chip-green-text);
+      border: 1px solid var(--chip-green-border);
+    }
+
+    .chip-rose {
+      background: var(--chip-rose-bg);
+      color: var(--chip-rose-text);
+      border: 1px solid var(--chip-rose-border);
+    }
+
+    .chip-amber {
+      background: var(--chip-amber-bg);
+      color: var(--chip-amber-text);
+      border: 1px solid var(--chip-amber-border);
+    }
+
+    .chip-lilac {
+      background: var(--chip-lilac-bg);
+      color: var(--chip-lilac-text);
+      border: 1px solid var(--chip-lilac-border);
+    }
+
+    .chip-slate {
+      background: var(--chip-slate-bg);
+      color: var(--chip-slate-text);
+      border: 1px solid var(--chip-slate-border);
+      font-size: 0.72rem;
+    }
+
+    /* Card 1: Demo Story */
+    .story-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      margin-bottom: 1.25rem;
+      align-items: center;
+    }
+
+    .step-pill {
+      padding: 0.55rem 1.15rem;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .step-pill:hover {
+      background: #ffffff;
+      color: var(--text-main);
+      transform: translateY(-1px);
+    }
+
+    .step-pill.active {
+      background: #e8f2d5;
+      color: var(--olive-dark);
+      border-color: #bcd98c;
+      box-shadow: 0 2px 8px rgba(79, 122, 26, 0.15);
+    }
+
+    .story-btn-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-left: auto;
+    }
+
+    .btn-action-olive {
+      background: var(--olive-dark);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(63, 90, 18, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-olive:hover {
+      background: var(--olive-mid);
+      transform: translateY(-1px);
+    }
+
+    .btn-action-white {
+      background: #ffffff;
+      color: var(--text-main);
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 999px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-white:hover {
+      background: #f7f9fa;
+      border-color: rgba(0, 0, 0, 0.2);
+    }
+
+    .narration-box {
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-left: 4px solid var(--olive-mid);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      font-size: 0.96rem;
+      line-height: 1.55;
+      color: #272f36;
+    }
+
+    /* Card 2: Access Status */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 840px) {
+      .grid-2col { grid-template-columns: 1fr; }
+    }
+
+    .status-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .status-table th {
+      text-align: left;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .status-table td {
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+      color: var(--text-main);
+    }
+
+    .status-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Card 3: Live Decisions Table */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    /* Card 4: Revocation Across Nodes */
+    .nodes-container {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 1.25rem;
     }
-    .key-state-row {
+
+    .nodes-track {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .nodes-track { grid-template-columns: 1fr 1fr; }
+    }
+
+    .node-box {
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-radius: 16px;
+      padding: 1.1rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      transition: all 0.3s ease;
+    }
+
+    .node-indicator {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      transition: all 0.4s ease;
+    }
+
+    .node-indicator.enforced {
+      background: #22c55e;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.45);
+    }
+
+    .propagation-banner {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.75rem;
-      background: #0a1122;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
+      background: #f7faef;
+      border: 1px solid #d4e8af;
+      padding: 0.85rem 1.25rem;
+      border-radius: 12px;
+      font-size: 0.92rem;
     }
 
-    /* Event Timeline Table */
-    .table-container {
-      overflow-x: auto;
-      max-height: 380px;
+    /* Card 5: Service Graph */
+    .graph-card-wrapper {
+      position: relative;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 16px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      padding: 1rem;
     }
-    table {
+
+    .svg-graph {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-      font-family: var(--font-mono);
-      text-align: left;
-    }
-    th {
-      background: #090e1c;
-      color: var(--text-muted);
-      padding: 0.75rem 1rem;
-      border-bottom: 2px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    td {
-      padding: 0.65rem 1rem;
-      border-bottom: 1px solid #131d33;
-    }
-    tr:hover td {
-      background: rgba(0, 242, 254, 0.03);
+      height: 280px;
+      display: block;
     }
 
-    .terminal-box {
-      background: #050811;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.75rem;
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      color: #38bdf8;
-      max-height: 120px;
-      overflow-y: auto;
-      margin-top: 0.75rem;
+    @keyframes pulseThreatPath {
+      0% { stroke-opacity: 0.45; stroke-width: 3px; }
+      50% { stroke-opacity: 1; stroke-width: 4.5px; }
+      100% { stroke-opacity: 0.45; stroke-width: 3px; }
+    }
+
+    .threat-edge {
+      stroke: #e11d48;
+      stroke-width: 3.5px;
+      stroke-dasharray: 6 3;
+      animation: pulseThreatPath 1.6s ease-in-out infinite;
+    }
+
+    /* Card 6: Key Lifecycle and Log Integrity */
+    .integrity-container {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    @media (max-width: 800px) {
+      .integrity-container { grid-template-columns: 1fr; }
+    }
+
+    .integrity-badge-box {
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 18px;
+      padding: 1.75rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .big-badge {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      padding: 0.5rem 1.8rem;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .badge-verified {
+      background: #dcfce7;
+      color: #15803d;
+      border: 2px solid #86efac;
+    }
+
+    .badge-tampered {
+      background: #ffe4e6;
+      color: #b91c1c;
+      border: 2px solid #fca5a5;
+      animation: pulseBadge 1.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulseBadge {
+      from { box-shadow: 0 0 10px rgba(225, 29, 72, 0.3); }
+      to { box-shadow: 0 0 24px rgba(225, 29, 72, 0.6); }
+    }
+
+    /* Card 7: Detector Alerts */
+    .alerts-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .alert-card {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 14px;
+      padding: 1.15rem 1.35rem;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-left: 4px solid #e11d48;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .alert-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Card 8: Evidence Goals */
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .evidence-item {
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 14px;
+      padding: 1rem 1.15rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .eval-banners-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .eval-banner-pill {
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 999px;
+      padding: 0.45rem 1rem;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
     }
 
     footer {
-      border-top: 1px solid var(--border);
-      padding: 1rem 2rem;
       text-align: center;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-family: var(--font-mono);
+      padding: 2rem 1.5rem 3.5rem;
+      color: var(--text-subtle);
+      font-size: 0.85rem;
+      position: relative;
+      z-index: 20;
     }
   </style>
 </head>
 <body>
+  <!-- Fallback layer & landscape background -->
+  <div class="bg-fallback"></div>
+  <div class="bg-landscape"></div>
+  <div class="storm-overlay" id="storm-overlay"></div>
 
-  <header>
-    <div class="brand">
-      <div class="brand-icon">Ψ</div>
-      <div>
-        <div class="brand-title">Pseudora · Secret Wards</div>
-        <div class="brand-sub">Post-Quantum Cryptography & Lateral Movement Detector</div>
+  <!-- Drifting Cherry Blossom Petals -->
+  <div class="petals-container" id="petals-container" aria-hidden="true"></div>
+
+  <!-- Centered Floating Navbar Pill -->
+  <div class="nav-container">
+    <nav class="nav-pill" aria-label="Main Navigation">
+      <div class="nav-brand">
+        <span class="nav-logo-mark">▲</span>
+        <span id="nav-brand-title">Ctrl+Alt+Delulu</span>
       </div>
+      <button class="nav-btn-olive" onclick="runNextStep()" id="nav-run-btn">Run demo</button>
+    </nav>
+  </div>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="hero-birds" aria-hidden="true">
+      <svg width="72" height="18" viewBox="0 0 72 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 10C8 6 12 6 16 10C20 6 24 6 28 10" stroke="#475569" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M40 7C43 4 46 4 49 7C52 4 55 4 58 7" stroke="#475569" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M60 12C62 10 64 10 66 12C68 10 70 10 72 12" stroke="#475569" stroke-width="1" stroke-linecap="round"/>
+      </svg>
     </div>
-    <div class="status-bar">
-      <div class="status-item"><div class="status-dot"></div> Node.js 24.11.1 Native</div>
-      <div class="status-item"><span class="badge badge-pqc">NIST FIPS 203 (ML-KEM-768)</span></div>
-      <div class="status-item"><span class="badge badge-pqc">NIST FIPS 204 (ML-DSA-65)</span></div>
-      <div class="status-item"><span class="badge badge-live">Deterministic Engine (0 ML)</span></div>
-    </div>
+    <h1 class="hero-title">Trust, but <span class="verify-word">verify.</span></h1>
+    <p class="hero-subtitle">Post-quantum access control · tamper-evident audit · explainable detection</p>
   </header>
 
-  <main>
-    <!-- 5-Minute Scripted Story Runner -->
-    <div class="card col-story">
-      <div class="card-title">
-        <span>Interactive 5-Minute Evaluation Story</span>
-        <span class="badge badge-pqc">Live Scenario Execution</span>
-      </div>
-      <div class="story-container">
-        <div class="story-controls">
-          <button id="btn-next-step" class="btn" onclick="nextStep()">Execute Next Step ▶</button>
-          <button id="btn-reset" class="btn btn-secondary" onclick="resetStory()">Reset ↺</button>
-        </div>
-        <div class="story-step-indicator">
-          <div id="step-1" class="step-pill active">1. Setup & KEM Read</div>
-          <div id="step-2" class="step-pill">2. Device Loss & Revoke</div>
-          <div id="step-3" class="step-pill">3. Rotation & Recovery</div>
-          <div id="step-4" class="step-pill">4. Scrypt Backup Check</div>
-          <div id="step-5" class="step-pill">5. Log Tamper Defense</div>
-          <div id="step-6" class="step-pill">6. Detector Alerts</div>
-        </div>
-      </div>
-      <div id="terminal" class="terminal-box">
-        [READY] Pseudora security operations engine initialized. Select 'Execute Next Step' to walk through the 5-minute evaluation story.
-      </div>
-    </div>
+  <!-- Main Cards Section -->
+  <main class="main-content">
 
-    <!-- Service Graph Topology & Lateral Movement -->
-    <div class="card col-graph">
-      <div class="card-title">
-        <span>Service Graph & Lateral Movement Topology</span>
-        <span id="graph-threat-badge" class="badge badge-live">Normal Baseline</span>
+    <!-- Card 1: Demo Story -->
+    <section class="glass-card" aria-labelledby="card1-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card1-heading"><span class="card-number">1</span> Demo Story</h2>
+        <div class="story-btn-row">
+          <button class="btn-action-olive" onclick="runNextStep()">Next step</button>
+          <button class="btn-action-white" onclick="resetDemo()">Reset</button>
+        </div>
       </div>
-      <div class="graph-wrapper">
-        <svg class="topology-svg" viewBox="0 0 700 300" id="topology">
+      <div class="story-controls" role="tablist">
+        <button class="step-pill active" id="tab-step-1" onclick="jumpToStep(1)">1. PQC Setup & Read</button>
+        <button class="step-pill" id="tab-step-2" onclick="jumpToStep(2)">2. Revocation Broadcast</button>
+        <button class="step-pill" id="tab-step-3" onclick="jumpToStep(3)">3. Key Rotation & WAL</button>
+        <button class="step-pill" id="tab-step-4" onclick="jumpToStep(4)">4. Scrypt Backup</button>
+        <button class="step-pill" id="tab-step-5" onclick="jumpToStep(5)">5. Hash Log & Tamper</button>
+        <button class="step-pill" id="tab-step-6" onclick="jumpToStep(6)">6. Explainable Detector</button>
+      </div>
+      <div class="narration-box" id="narration-text" aria-live="polite">
+        Loading real state from local security engine...
+      </div>
+    </section>
+
+    <!-- Card 2: Access Status -->
+    <section class="glass-card" aria-labelledby="card2-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card2-heading"><span class="card-number">2</span> Access Status</h2>
+        <span class="chip chip-slate">Real State Lock</span>
+      </div>
+      <div class="grid-2col">
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Actors</h3>
+          <table class="status-table" aria-label="Actors status">
+            <thead>
+              <tr>
+                <th>Actor</th>
+                <th>Role</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="actors-table-body"></tbody>
+          </table>
+        </div>
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Assets</h3>
+          <table class="status-table" aria-label="Assets status">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Owner</th>
+                <th>Encryption</th>
+              </tr>
+            </thead>
+            <tbody id="assets-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Card 3: Live Decisions -->
+    <section class="glass-card" aria-labelledby="card3-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card3-heading"><span class="card-number">3</span> Live Decisions</h2>
+        <span class="chip chip-lilac">ML-KEM-768 Interop</span>
+      </div>
+      <div class="table-container">
+        <table class="status-table" aria-label="Live decision audit">
+          <thead>
+            <tr>
+              <th>Request ID</th>
+              <th>Actor</th>
+              <th>Asset</th>
+              <th>Decision</th>
+              <th>Algorithm</th>
+              <th>Latency</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="decisions-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Card 4: Revocation Across Nodes -->
+    <section class="glass-card" aria-labelledby="card4-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card4-heading"><span class="card-number">4</span> Revocation Across Nodes</h2>
+        <span class="chip chip-slate">single-host simulation</span>
+      </div>
+      <div class="nodes-container">
+        <div class="nodes-track" id="nodes-track"></div>
+        <div class="propagation-banner">
+          <div>
+            <strong>Measured propagation to final node:</strong> 
+            <span id="propagation-time-text" style="color: var(--olive-dark); font-weight: 700;">20 ms</span>
+          </div>
+          <span class="chip chip-slate">simulated 5-node cluster</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Card 5: Service Graph -->
+    <section class="glass-card" aria-labelledby="card5-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card5-heading"><span class="card-number">5</span> Service Graph</h2>
+        <span class="chip chip-green" id="graph-status-chip">Normal Baseline</span>
+      </div>
+      <div class="graph-card-wrapper">
+        <svg class="svg-graph" viewBox="0 0 800 240" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <marker id="arrow-green" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+            <marker id="arrow-green" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#22c55e" />
             </marker>
-            <marker id="arrow-red" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+            <marker id="arrow-rose" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1 L 10 5 L 0 9 z" fill="#e11d48" />
             </marker>
           </defs>
 
-          <!-- Normal baseline edges -->
-          <line x1="80" y1="150" x2="220" y2="80" stroke="#10b981" stroke-width="2" stroke-dasharray="4" marker-end="url(#arrow-green)" />
-          <line x1="80" y1="150" x2="220" y2="150" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)" />
-          <line x1="80" y1="150" x2="220" y2="220" stroke="#10b981" stroke-width="2" marker-end="url(#arrow-green)" />
-          <line x1="220" y1="220" x2="220" y2="150" stroke="#10b981" stroke-width="2" stroke-dasharray="4" marker-end="url(#arrow-green)" />
+          <!-- Baseline edges -->
+          <line x1="120" y1="120" x2="280" y2="70" stroke="#86efac" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <line x1="120" y1="120" x2="280" y2="170" stroke="#86efac" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <line x1="280" y1="170" x2="480" y2="170" stroke="#86efac" stroke-width="2.5" marker-end="url(#arrow-green)" />
+          <line x1="120" y1="120" x2="480" y2="70" stroke="#86efac" stroke-width="2.5" marker-end="url(#arrow-green)" />
 
-          <!-- Attack lateral movement edges (hidden by default) -->
-          <path id="attack-edge-1" d="M 240 220 C 350 250, 400 230, 460 210" stroke="#ef4444" stroke-width="3" fill="none" opacity="0.2" marker-end="url(#arrow-red)" />
-          <path id="attack-edge-2" d="M 480 210 C 530 180, 560 140, 580 90" stroke="#ef4444" stroke-width="3" fill="none" opacity="0.2" marker-end="url(#arrow-red)" />
-          <path id="attack-edge-3" d="M 580 70 C 500 50, 360 60, 240 70" stroke="#ef4444" stroke-width="3" fill="none" opacity="0.2" marker-end="url(#arrow-red)" />
+          <!-- Dynamic Threat Path (reports -> billing -> archive -> identity) -->
+          <g id="threat-path-group" style="display: none;">
+            <line x1="480" y1="70" x2="480" y2="170" class="threat-edge" marker-end="url(#arrow-rose)" />
+            <line x1="480" y1="170" x2="680" y2="120" class="threat-edge" marker-end="url(#arrow-rose)" />
+            <line x1="680" y1="120" x2="280" y2="70" class="threat-edge" marker-end="url(#arrow-rose)" />
+          </g>
 
           <!-- Nodes -->
           <!-- Portal -->
-          <g transform="translate(60, 150)">
-            <circle r="24" fill="#0d1f38" stroke="#00f2fe" stroke-width="2" />
-            <text text-anchor="middle" dy="4" fill="#fff" font-size="10" font-family="monospace">portal</text>
+          <g transform="translate(120, 120)">
+            <circle r="32" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="2" />
+            <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#0369a1">portal</text>
           </g>
           <!-- Identity -->
-          <g transform="translate(220, 70)">
-            <circle r="24" fill="#0d1f38" stroke="#10b981" stroke-width="2" />
-            <text text-anchor="middle" dy="4" fill="#fff" font-size="10" font-family="monospace">identity</text>
+          <g transform="translate(280, 70)">
+            <circle r="32" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="2" />
+            <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#6b21a8">identity</text>
           </g>
           <!-- Catalog -->
-          <g transform="translate(220, 150)">
-            <circle r="24" fill="#0d1f38" stroke="#10b981" stroke-width="2" />
-            <text text-anchor="middle" dy="4" fill="#fff" font-size="10" font-family="monospace">catalog</text>
+          <g transform="translate(280, 170)">
+            <circle r="32" fill="#dcfce7" stroke="#86efac" stroke-width="2" />
+            <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#15803d">catalog</text>
           </g>
           <!-- Reports -->
-          <g transform="translate(220, 230)">
-            <circle r="24" fill="#0d1f38" stroke="#10b981" stroke-width="2" id="node-reports" />
-            <text text-anchor="middle" dy="4" fill="#fff" font-size="10" font-family="monospace">reports</text>
+          <g transform="translate(480, 70)">
+            <circle r="32" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2" />
+            <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#334155">reports</text>
           </g>
-          <!-- Billing (Target 1) -->
-          <g transform="translate(480, 220)">
-            <circle r="24" fill="#1f1122" stroke="#ef4444" stroke-width="2" id="node-billing" />
-            <text text-anchor="middle" dy="4" fill="#fff" font-size="10" font-family="monospace">billing</text>
+          <!-- Billing -->
+          <g transform="translate(480, 170)">
+            <circle r="32" fill="#fef3c7" stroke="#fcd34d" stroke-width="2" />
+            <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#b45309">billing</text>
           </g>
-          <!-- Archive (Target 2) -->
-          <g transform="translate(600, 80)">
-            <circle r="24" fill="#1f1122" stroke="#ef4444" stroke-width="2" id="node-archive" />
-            <text text-anchor="middle" dy="4" fill="#fff" font-size="10" font-family="monospace">archive</text>
+          <!-- Archive -->
+          <g transform="translate(680, 120)">
+            <circle r="32" fill="#ffe4e6" stroke="#fda4af" stroke-width="2" />
+            <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#be123c">archive</text>
           </g>
         </svg>
       </div>
-    </div>
+    </section>
 
-    <!-- Key Lifecycle & PQC Envelope Status -->
-    <div class="card col-keys">
-      <div class="card-title">
-        <span>Cryptographic Key Lifecycle</span>
-        <span class="badge badge-pqc">FIPS 203 / 204</span>
+    <!-- Card 6: Key Lifecycle and Log Integrity -->
+    <section class="glass-card" aria-labelledby="card6-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card6-heading"><span class="card-number">6</span> Key Lifecycle & Log Integrity</h2>
+        <span class="chip chip-slate">ML-DSA-65 Checkpoints</span>
       </div>
-      <div class="key-state-list">
-        <div class="key-state-row">
-          <span>Active KEK (v2):</span>
-          <span class="badge badge-live">AES-256-GCM / Ready</span>
+      <div class="integrity-container">
+        <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+          <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Active KEK</div>
+            <div style="font-weight: 600; font-size: 1.05rem;" id="active-kek-text">KEK-v1 (AES-256-GCM)</div>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Retiring KEK (Grace Period)</div>
+            <div style="font-weight: 600; font-size: 1.05rem; color: var(--text-muted);" id="retiring-kek-text">None</div>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Chain Head Hash</div>
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; word-break: break-all;" id="head-hash-text">sha256:...</div>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Last Checkpoint</div>
+            <div style="font-size: 0.92rem;" id="checkpoint-text">chkpt-001 @ seq:1</div>
+          </div>
         </div>
-        <div class="key-state-row">
-          <span>Retiring KEK (v1):</span>
-          <span class="badge badge-warn">Grace Period (Decrypt Only)</span>
-        </div>
-        <div class="key-state-row">
-          <span>Revocation Authority:</span>
-          <span class="badge badge-pqc">ML-DSA-65 (5-Node Enforced)</span>
-        </div>
-        <div class="key-state-row">
-          <span>Audit Log Head Hash:</span>
-          <span id="log-head" style="color: var(--accent-cyan); font-size: 0.75rem;">SHA256: 3a9f...e104 (Verified)</span>
-        </div>
-        <div class="key-state-row">
-          <span>Scrypt Backup KDF:</span>
-          <span>N=32768, r=8, p=1 (Rollback Protected)</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Security Event Log & Ground Truth Evaluation Table -->
-    <div class="card col-table">
-      <div class="card-title">
-        <span>Identity Event Stream & Explainable Rule Classifications</span>
-        <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">
-          Practice Check: 22/22 (100%) · Synthetic Attack Set: 44/44 (100% Recall) · Benign Set: 0 False Alerts / 1k
-        </span>
+        <div class="integrity-badge-box">
+          <div style="font-size: 0.82rem; text-transform: uppercase; font-weight: 700; color: var(--text-subtle);">Log Integrity Status</div>
+          <div class="big-badge badge-verified" id="big-integrity-badge">VERIFIED</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);" id="integrity-subtext">All canonical SHA-256 links intact</div>
+        </div>
       </div>
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Event ID</th>
-              <th>Estimated Time</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Source → Target</th>
-              <th>Outcome</th>
-              <th>Rule ID</th>
-              <th>Status / Classification</th>
-            </tr>
-          </thead>
-          <tbody id="event-tbody">
-            <!-- Dynamically populated or default rows -->
-            <tr>
-              <td>evt-001</td>
-              <td>09:00:00.000Z</td>
-              <td>user-alex</td>
-              <td>sign_in</td>
-              <td>portal → identity</td>
-              <td><span class="badge badge-live">success</span></td>
-              <td>RULE_ROUTINE_ACCESS</td>
-              <td>Routine viewer sign-in</td>
-            </tr>
-            <tr>
-              <td>evt-003</td>
-              <td>09:01:00.000Z</td>
-              <td>user-admin</td>
-              <td>approve_role_change</td>
-              <td>admin-console → identity</td>
-              <td><span class="badge badge-live">success</span></td>
-              <td>RULE_OPERATOR_ADMIN_CHANGE</td>
-              <td>Operator approves change-100</td>
-            </tr>
-            <tr>
-              <td>evt-004</td>
-              <td>09:01:05.000Z</td>
-              <td>user-alex</td>
-              <td>role_change</td>
-              <td>admin-console → identity</td>
-              <td><span class="badge badge-live">success</span></td>
-              <td>RULE_APPROVED_CHANGE</td>
-              <td>Approved change-100 matched</td>
-            </tr>
-            <tr style="background: rgba(245, 158, 11, 0.08);">
-              <td>evt-008</td>
-              <td>09:03:05.000Z</td>
-              <td>user-blair</td>
-              <td>role_change</td>
-              <td>admin-console → identity</td>
-              <td><span class="badge badge-warn">success</span></td>
-              <td>RULE_UNAPPROVED_ROLE_CHANGE</td>
-              <td><span class="badge badge-warn">UNAPPROVED ESCALATION</span></td>
-            </tr>
-            <tr style="background: rgba(245, 158, 11, 0.08);">
-              <td>evt-009</td>
-              <td>09:03:06.000Z</td>
-              <td>user-blair</td>
-              <td>read</td>
-              <td>portal → reports</td>
-              <td><span class="badge badge-warn">allow</span></td>
-              <td>RULE_REVIEW_AFTER_ROLE_CHANGE</td>
-              <td><span class="badge badge-warn">READ POST ESCALATION</span></td>
-            </tr>
-            <tr style="background: rgba(239, 68, 68, 0.1);">
-              <td>evt-010</td>
-              <td>09:04:00.000Z</td>
-              <td>svc-report-worker</td>
-              <td>read</td>
-              <td>reports → billing</td>
-              <td><span class="badge badge-danger">deny</span></td>
-              <td>RULE_LATERAL_MOVEMENT_TRAVERSAL</td>
-              <td><span class="badge badge-danger">LATERAL HOP 1</span></td>
-            </tr>
-            <tr style="background: rgba(239, 68, 68, 0.1);">
-              <td>evt-011</td>
-              <td>09:04:02.000Z</td>
-              <td>svc-report-worker</td>
-              <td>read</td>
-              <td>billing → archive</td>
-              <td><span class="badge badge-danger">deny</span></td>
-              <td>RULE_LATERAL_MOVEMENT_TRAVERSAL</td>
-              <td><span class="badge badge-danger">LATERAL HOP 2</span></td>
-            </tr>
-            <tr style="background: rgba(239, 68, 68, 0.1);">
-              <td>evt-012</td>
-              <td>09:04:03.000Z</td>
-              <td>svc-report-worker</td>
-              <td>list_roles</td>
-              <td>archive → identity</td>
-              <td><span class="badge badge-danger">deny</span></td>
-              <td>RULE_LATERAL_MOVEMENT_TRAVERSAL</td>
-              <td><span class="badge badge-danger">LATERAL HOP 3</span></td>
-            </tr>
-            <tr>
-              <td>evt-013</td>
-              <td>09:05:01.000Z</td>
-              <td>user-alex</td>
-              <td>read</td>
-              <td>portal → catalog</td>
-              <td><span class="badge badge-live">allow</span></td>
-              <td>RULE_TIMELINE_ORDERING</td>
-              <td>Routine delayed arrival (arrived after evt-014)</td>
-            </tr>
-            <tr>
-              <td>evt-015</td>
-              <td>09:06:01.000Z</td>
-              <td>user-alex</td>
-              <td>read</td>
-              <td>portal → reports</td>
-              <td><span class="badge badge-live">allow</span></td>
-              <td>RULE_SOURCE_CLOCK_OFFSET</td>
-              <td>Source offset +2000ms normalized</td>
-            </tr>
-            <tr>
-              <td>evt-017</td>
-              <td>09:07:02.000Z</td>
-              <td>user-alex</td>
-              <td>read</td>
-              <td>portal → reports-node-a</td>
-              <td><span class="badge badge-danger">deny</span></td>
-              <td>RULE_POST_REVOCATION_DENIAL</td>
-              <td>Node A denies reports after change-101 revoke</td>
-            </tr>
-          </tbody>
-        </table>
+    </section>
+
+    <!-- Card 7: Detector Alerts -->
+    <section class="glass-card" aria-labelledby="card7-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card7-heading"><span class="card-number">7</span> Detector Alerts</h2>
+        <span class="chip chip-amber" id="alerts-count-chip">0 Active Alerts</span>
       </div>
-    </div>
+      <div class="alerts-container" id="alerts-container">
+        <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+          No unapproved role changes or lateral movement chains detected.
+        </div>
+      </div>
+    </section>
+
+    <!-- Card 8: Evidence Matrix -->
+    <section class="glass-card" aria-labelledby="card8-heading">
+      <div class="card-header">
+        <h2 class="card-title" id="card8-heading"><span class="card-number">8</span> Evidence & Verification</h2>
+        <span class="chip chip-green">Goals 1–8 Measured</span>
+      </div>
+
+      <div class="eval-banners-row">
+        <div class="eval-banner-pill">
+          <span style="color: #166534;">●</span> Practice set: 22/22 (functional check, not accuracy)
+        </div>
+        <div class="eval-banner-pill">
+          <span style="color: #166534;">●</span> Synthetic attack set: 44/44 (self-generated)
+        </div>
+        <div class="eval-banner-pill">
+          <span style="color: #475569;">●</span> Benign false-alert rate: 0 / 1,000 (routine baseline)
+        </div>
+      </div>
+
+      <div class="evidence-grid" id="evidence-grid"></div>
+    </section>
+
   </main>
 
   <footer>
-    Pseudora · DevForge Track 4 (Team Ctrl+Alt+Delulu) · Native Node.js 24.11.1 / OpenSSL 3.5.4 · Fully Offline
+    <span id="footer-brand">Ctrl+Alt+Delulu</span> · DevForge Track 4: Trust, but verify · Fully Offline · Native Node.js 24.11.1
   </footer>
 
   <script>
-    let currentStoryStep = 1;
+    // Central branding constant
+    const BRAND_NAME = "Ctrl+Alt+Delulu";
+    const BRAND_SUBTITLE = "Trust, but verify";
 
-    const storyScripts = [
-      {
-        step: 1,
-        title: "Setup & Post-Quantum ML-KEM-768 Protected Read",
-        log: "[STEP 1 SUCCESS] setup initialized state (owners, disabled, encrypted contents) with AES-256-GCM. protected_read imported 1184-byte ML-KEM-768 public key, encapsulated 32-byte shared key, and generated valid HMAC-SHA256 proof in 41.2 ms."
-      },
-      {
-        step: 2,
-        title: "Lost Device & 5-Node Signed Revocation Broadcast",
-        log: "[STEP 2 SUCCESS] Device loss detected for actor 'maya'. Authority signed revocation broadcast using ML-DSA-65. Broadcast propagated across 5 simulated nodes in 16 ms. Monotonic epoch advanced; replayed old lists rejected."
-      },
-      {
-        step: 3,
-        title: "Key Rotation with DEK Re-wrapping & WAL Crash Recovery",
-        log: "[STEP 3 SUCCESS] KeyLifecycleManager transitioned V1 to RETIRING and V2 to ACTIVE. Adapter DEKs re-wrapped. Crash injection mid-rotation triggered WAL rollback and recovered cleanly without corrupted state."
-      },
-      {
-        step: 4,
-        title: "Scrypt Backup Integrity & Monotonic Rollback Protection",
-        log: "[STEP 4 SUCCESS] Backup created with Scrypt KDF (N=32768, r=8, p=1) and ML-DSA signature over ciphertext. Restoring pre-revocation backup preserved prior revocations; maya remains strictly DENIED."
-      },
-      {
-        step: 5,
-        title: "Hash-Chained Log & Injection Defense",
-        log: "[STEP 5 SUCCESS] audit.log verified with SHA-256 canonical lines and ML-DSA signed checkpoints. CRLF and Unicode separators escaped within single-line JSON; bit-flip tampering caught at exact line index."
-      },
-      {
-        step: 6,
-        title: "Explainable Anomaly & Lateral Movement Detector",
-        log: "[STEP 6 SUCCESS] Explainable detector flagged unapproved escalation (ALT-ROLE-evt-008: user-blair) and chained multi-hop traversal (ALT-LATERAL-flow-005: reports -> billing -> archive -> identity) with 100% recall."
+    // Petals Generator
+    function initPetals() {
+      const container = document.getElementById('petals-container');
+      const count = 18;
+      for (let i = 0; i < count; i++) {
+        const petal = document.createElement('div');
+        petal.className = 'petal';
+        const size = Math.random() * 12 + 10;
+        petal.style.width = size + 'px';
+        petal.style.height = (size * 1.3) + 'px';
+        petal.style.left = (Math.random() * 100) + 'vw';
+        petal.style.animationDuration = (Math.random() * 8 + 9) + 's';
+        petal.style.animationDelay = (Math.random() * 10) + 's';
+        container.appendChild(petal);
       }
-    ];
+    }
 
-    function nextStep() {
-      if (currentStoryStep > 6) currentStoryStep = 1;
-      const script = storyScripts[currentStoryStep - 1];
+    // Render snapshot data into UI
+    function renderState(data) {
+      if (!data) return;
 
-      // Update terminal
-      const term = document.getElementById('terminal');
-      term.innerHTML += `<br/><br/><strong>[STEP ${script.step}/6: ${script.title}]</strong><br/>${script.log}`;
-      term.scrollTop = term.scrollHeight;
+      // Storm mode toggle for DEMO MOMENT
+      if (data.storm_active) {
+        document.body.classList.add('storm-active');
+      } else {
+        document.body.classList.remove('storm-active');
+      }
 
-      // Update pills
+      // Step narration
+      document.getElementById('narration-text').textContent = data.step_narration || "Ready.";
+
+      // Step pill tabs
       for (let i = 1; i <= 6; i++) {
-        const pill = document.getElementById(`step-${i}`);
-        if (i < currentStoryStep) {
-          pill.className = 'step-pill completed';
-        } else if (i === currentStoryStep) {
-          pill.className = 'step-pill active';
-        } else {
-          pill.className = 'step-pill';
+        const pill = document.getElementById(`tab-step-${i}`);
+        if (pill) {
+          if (i === data.current_step) {
+            pill.className = 'step-pill active';
+          } else {
+            pill.className = 'step-pill';
+          }
         }
       }
 
-      // Visual graph updates on step 6
-      if (currentStoryStep === 6) {
-        document.getElementById('attack-edge-1').setAttribute('opacity', '1');
-        document.getElementById('attack-edge-2').setAttribute('opacity', '1');
-        document.getElementById('attack-edge-3').setAttribute('opacity', '1');
-        document.getElementById('graph-threat-badge').className = 'badge badge-danger';
-        document.getElementById('graph-threat-badge').textContent = 'LATERAL TRAVERSAL DETECTED';
+      // Actors Table
+      const actorsBody = document.getElementById('actors-table-body');
+      actorsBody.innerHTML = '';
+      (data.actors || []).forEach(a => {
+        let chipClass = 'chip-green';
+        if (a.status === 'revoked') chipClass = 'chip-rose';
+        if (a.status === 'disabled') chipClass = 'chip-slate';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${a.id}</strong></td>
+          <td>${a.role}</td>
+          <td><span class="chip ${chipClass}">${a.status}</span></td>
+        `;
+        actorsBody.appendChild(tr);
+      });
+
+      // Assets Table
+      const assetsBody = document.getElementById('assets-table-body');
+      assetsBody.innerHTML = '';
+      (data.assets || []).forEach(as => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${as.id}</strong></td>
+          <td>${as.owner}</td>
+          <td><span class="chip chip-lilac">${as.cipher}</span></td>
+        `;
+        assetsBody.appendChild(tr);
+      });
+
+      // Decisions Table
+      const decBody = document.getElementById('decisions-table-body');
+      decBody.innerHTML = '';
+      (data.live_decisions || []).forEach(d => {
+        const chipClass = d.decision === 'allow' ? 'chip-green' : 'chip-rose';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span style="font-family: var(--font-mono); font-size: 0.8rem;">${d.request_id}</span></td>
+          <td>${d.actor}</td>
+          <td>${d.asset}</td>
+          <td><span class="chip ${chipClass}">${d.decision}</span></td>
+          <td>${d.algorithm}</td>
+          <td>${d.latency_ms} ms</td>
+          <td><small>${d.time}</small></td>
+        `;
+        decBody.appendChild(tr);
+      });
+
+      // Node Track
+      const nodesTrack = document.getElementById('nodes-track');
+      nodesTrack.innerHTML = '';
+      (data.nodes || []).forEach(n => {
+        const div = document.createElement('div');
+        div.className = 'node-box';
+        const indClass = n.status === 'enforced' ? 'node-indicator enforced' : 'node-indicator';
+        div.innerHTML = `
+          <div class="${indClass}"></div>
+          <div style="font-weight: 700; font-size: 0.88rem;">${n.id}</div>
+          <div style="font-size: 0.75rem; color: var(--text-subtle);">${n.location}</div>
+          <span class="chip ${n.status === 'enforced' ? 'chip-green' : 'chip-slate'}">${n.status}</span>
+        `;
+        nodesTrack.appendChild(div);
+      });
+      document.getElementById('propagation-time-text').textContent = `${data.propagation_ms || 20} ms`;
+
+      // Service Graph
+      const threatPathGroup = document.getElementById('threat-path-group');
+      const graphStatusChip = document.getElementById('graph-status-chip');
+      if (data.current_step === 6) {
+        threatPathGroup.style.display = 'inline';
+        graphStatusChip.className = 'chip chip-rose';
+        graphStatusChip.textContent = 'Lateral Threat Detected';
+      } else {
+        threatPathGroup.style.display = 'none';
+        graphStatusChip.className = 'chip chip-green';
+        graphStatusChip.textContent = 'Normal Baseline';
       }
 
-      currentStoryStep++;
+      // Key Lifecycle & Integrity
+      document.getElementById('active-kek-text').textContent = data.key_lifecycle?.active_kek || 'None';
+      document.getElementById('retiring-kek-text').textContent = data.key_lifecycle?.retiring_kek || 'None';
+      document.getElementById('head-hash-text').textContent = data.log_integrity?.headHash || 'sha256:...';
+      document.getElementById('checkpoint-text').textContent = data.log_integrity?.checkpoint || 'chkpt-001';
+
+      const bigBadge = document.getElementById('big-integrity-badge');
+      const integritySub = document.getElementById('integrity-subtext');
+      if (data.log_integrity?.valid === false) {
+        bigBadge.className = 'big-badge badge-tampered';
+        bigBadge.textContent = 'TAMPERED';
+        integritySub.textContent = data.log_integrity?.reason || 'Hash chain corruption detected!';
+      } else {
+        bigBadge.className = 'big-badge badge-verified';
+        bigBadge.textContent = 'VERIFIED';
+        integritySub.textContent = 'All canonical SHA-256 links intact';
+      }
+
+      // Detector Alerts
+      const alertsContainer = document.getElementById('alerts-container');
+      const alertsChip = document.getElementById('alerts-count-chip');
+      const alerts = data.detector_alerts || [];
+      if (alerts.length > 0) {
+        alertsChip.className = 'chip chip-rose';
+        alertsChip.textContent = `${alerts.length} Critical Alert${alerts.length > 1 ? 's' : ''}`;
+        alertsContainer.innerHTML = '';
+        alerts.forEach(al => {
+          const card = document.createElement('div');
+          card.className = 'alert-card';
+          card.innerHTML = `
+            <div class="alert-card-header">
+              <span style="font-weight: 700; color: #b91c1c;">${al.rule_id}</span>
+              <span class="chip chip-rose">${al.severity}</span>
+            </div>
+            <div style="font-size: 0.95rem; color: #1b1b1b;">${al.reason}</div>
+            <div style="font-size: 0.85rem; color: var(--text-subtle);">
+              <strong>Graph Path:</strong> <span style="font-family: var(--font-mono);">${al.graph_path}</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">
+              <strong>Events:</strong> ${al.event_ids.join(', ')}
+            </div>
+          `;
+          alertsContainer.appendChild(card);
+        });
+      } else {
+        alertsChip.className = 'chip chip-green';
+        alertsChip.textContent = '0 Alerts (Clean)';
+        alertsContainer.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+            No unapproved role changes or lateral movement chains detected.
+          </div>
+        `;
+      }
+
+      // Evidence Grid
+      const evGrid = document.getElementById('evidence-grid');
+      evGrid.innerHTML = '';
+      (data.evidence_goals || []).forEach(g => {
+        const isMeasured = g.status === 'measured';
+        const div = document.createElement('div');
+        div.className = 'evidence-item';
+        div.innerHTML = `
+          <div>
+            <div style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">${g.id}</div>
+            <div style="font-weight: 600; font-size: 0.92rem;">${g.title}</div>
+          </div>
+          <span class="chip ${isMeasured ? 'chip-green' : 'chip-slate'}">${g.status}</span>
+        `;
+        evGrid.appendChild(div);
+      });
     }
 
-    function resetStory() {
-      currentStoryStep = 1;
-      document.getElementById('terminal').innerHTML = "[RESET] Story runner reset to Step 1. Ready to execute demonstration workflow.";
-      for (let i = 1; i <= 6; i++) {
-        const pill = document.getElementById(`step-${i}`);
-        pill.className = i === 1 ? 'step-pill active' : 'step-pill';
+    // API Calls
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        renderState(data);
+      } catch (err) {
+        console.error('Fetch status error:', err);
       }
-      document.getElementById('attack-edge-1').setAttribute('opacity', '0.2');
-      document.getElementById('attack-edge-2').setAttribute('opacity', '0.2');
-      document.getElementById('attack-edge-3').setAttribute('opacity', '0.2');
-      document.getElementById('graph-threat-badge').className = 'badge badge-live';
-      document.getElementById('graph-threat-badge').textContent = 'Normal Baseline';
     }
+
+    async function runNextStep() {
+      try {
+        const res = await fetch('/api/step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        renderState(data);
+      } catch (err) {
+        console.error('Run next step error:', err);
+      }
+    }
+
+    async function jumpToStep(stepNum) {
+      try {
+        const res = await fetch('/api/step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: stepNum })
+        });
+        const data = await res.json();
+        renderState(data);
+      } catch (err) {
+        console.error('Jump step error:', err);
+      }
+    }
+
+    async function resetDemo() {
+      try {
+        const res = await fetch('/api/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        renderState(data);
+      } catch (err) {
+        console.error('Reset error:', err);
+      }
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      initPetals();
+      fetchState();
+    });
   </script>
 </body>
 </html>

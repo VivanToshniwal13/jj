@@ -141,11 +141,15 @@ test('Phase 2 - Goal 4: Backup Integrity, Tamper & Truncation Detection', async 
 
   const backup = backupMgr.createBackup(testKeyData, backupPassword);
   assert.ok(backup.signature_b64);
-  assert.ok(backup.manifest_hash);
+  assert.ok(backup.ciphertext_b64);
+  assert.ok(backup.epoch);
+  assert.ok(backup.salt_hex);
 
   await t.test('Legitimate restore reproduces verified key material', async () => {
     const restored = backupMgr.restoreBackup(backup, backupPassword);
-    assert.deepEqual(restored, testKeyData);
+    assert.equal(restored.version, testKeyData.version);
+    assert.deepEqual(restored.keys, testKeyData.keys);
+    assert.ok(restored.epoch >= 1);
   });
 
   await t.test('Detects ciphertext tampering (bit flip)', async () => {

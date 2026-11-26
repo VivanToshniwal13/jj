@@ -1,5 +1,10 @@
+Track-4-Toolkit/
 node_modules/
 *.bin
 *.enc
+*.key
+*.wal
+*.log
 *.tmp*
+tmp/
 .DS_Store

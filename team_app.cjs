@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { KeyLifecycleManager } = require('./lib/key_lifecycle.cjs');
 
 // ML-KEM-768 SPKI DER Prefix (RFC 9629 / NIST FIPS 203)
 const ML_KEM_768_SPKI_PREFIX = Buffer.from('308204b2300b0609608648016503040402038204a100', 'hex');
@@ -24,16 +25,6 @@ function getStateDir() {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   return dir;
-}
-
-function getMasterKek(stateDir) {
-  const kekPath = path.join(stateDir, 'kek.bin');
-  if (fs.existsSync(kekPath)) {
-    return fs.readFileSync(kekPath);
-  }
-  const kek = crypto.randomBytes(32);
-  durableWriteFile(kekPath, kek, 0o600);
-  return kek;
 }
 
 function durableWriteFile(targetPath, data, mode = 0o600) {
@@ -58,17 +49,33 @@ async function withStateLock(stateDir, fn) {
   while (Date.now() - start < LOCK_TIMEOUT_MS) {
     try {
       fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+      try {
+        fs.writeSync(fd, `${process.pid}\n`);
+      } catch {}
       break;
     } catch (err) {
       if (err.code === 'EEXIST') {
         try {
+          const content = fs.readFileSync(lockPath, 'utf8').trim();
+          const lockPid = parseInt(content, 10);
+          if (!isNaN(lockPid)) {
+            try {
+              process.kill(lockPid, 0); // Check if process still exists
+            } catch (kerr) {
+              if (kerr.code === 'ESRCH') {
+                // Process holding lock is dead - break stale lock immediately
+                fs.unlinkSync(lockPath);
+                continue;
+              }
+            }
+          }
           const stat = fs.statSync(lockPath);
           if (Date.now() - stat.mtimeMs > LOCK_TIMEOUT_MS) {
             fs.unlinkSync(lockPath);
             continue;
           }
         } catch {
-          // Lock might have been released in between
+          // Lock might have been released or stat failed
         }
         await new Promise(r => setTimeout(r, LOCK_RETRY_MS + Math.floor(Math.random() * 15)));
       } else {
@@ -96,6 +103,7 @@ async function withStateLock(stateDir, fn) {
 // In-Memory State Model using Map & Set to prevent prototype pollution
 function createEmptyState() {
   return {
+    epoch: 1,
     owners: new Map(),           // asset_id -> actor_id
     disabled: new Set(),         // Set of actor_id
     revoked: new Set(),          // Set of actor_id
@@ -113,6 +121,7 @@ function loadState(stateDir) {
   const parsed = JSON.parse(raw);
 
   return {
+    epoch: parsed.epoch || 1,
     owners: new Map(parsed.owners || []),
     disabled: new Set(parsed.disabled || []),
     revoked: new Set(parsed.revoked || []),
@@ -124,6 +133,7 @@ function loadState(stateDir) {
 function saveState(stateDir, state) {
   const storePath = path.join(stateDir, 'store.enc');
   const serialized = JSON.stringify({
+    epoch: state.epoch || 1,
     owners: Array.from(state.owners.entries()),
     disabled: Array.from(state.disabled),
     revoked: Array.from(state.revoked),
@@ -144,8 +154,8 @@ function validateStringId(val, name, maxLen = MAX_ID_LEN) {
   return val;
 }
 
-// AEAD (AES-256-GCM) Envelope Encryption
-function encryptBody(body, kek) {
+// AEAD (AES-256-GCM) Envelope Encryption with Versioned KEK
+function encryptBodyWithKey(body, kek, keyVersion = 1) {
   const dek = crypto.randomBytes(32);
   
   const bodyIv = crypto.randomBytes(12);
@@ -161,6 +171,7 @@ function encryptBody(body, kek) {
   const wrapTag = wrapCipher.getAuthTag();
 
   return {
+    key_version: keyVersion,
     wrapped_key_b64: wrappedKey.toString('base64'),
     wrap_iv_b64: wrapIv.toString('base64'),
     wrap_tag_b64: wrapTag.toString('base64'),
@@ -170,7 +181,7 @@ function encryptBody(body, kek) {
   };
 }
 
-function decryptBody(record, kek) {
+function decryptBodyWithKey(record, kek) {
   const wrapIv = Buffer.from(record.wrap_iv_b64, 'base64');
   const wrappedKey = Buffer.from(record.wrapped_key_b64, 'base64');
   const wrapTag = Buffer.from(record.wrap_tag_b64, 'base64');
@@ -202,7 +213,7 @@ exports.dispatch = async function dispatch(request) {
   }
 
   const stateDir = getStateDir();
-  const kek = getMasterKek(stateDir);
+  const km = new KeyLifecycleManager(stateDir);
 
   return await withStateLock(stateDir, async () => {
     switch (op) {
@@ -212,22 +223,25 @@ exports.dispatch = async function dispatch(request) {
           throw new Error('Invalid setup request structure');
         }
 
+        const activeKekObj = km.getActiveKey();
+        const activeKek = Buffer.from(activeKekObj.keyHex, 'hex');
+
         const state = createEmptyState();
 
-        // Populate owners using Map (prototype-safe)
+        // Populate owners using Map
         for (const [rawAsset, rawActor] of Object.entries(request.owners)) {
           const asset = validateStringId(rawAsset, 'asset');
           const actor = validateStringId(rawActor, 'actor');
           state.owners.set(asset, actor);
         }
 
-        // Populate and encrypt contents using Map
+        // Populate and encrypt contents with active KEK
         for (const [rawAsset, rawBody] of Object.entries(request.contents)) {
           const asset = validateStringId(rawAsset, 'asset');
           if (typeof rawBody !== 'string' || rawBody.length > MAX_BODY_LEN) {
             throw new Error('Invalid content body');
           }
-          state.encrypted_assets.set(asset, encryptBody(rawBody, kek));
+          state.encrypted_assets.set(asset, encryptBodyWithKey(rawBody, activeKek, activeKekObj.version));
         }
 
         // Populate disabled list using Set
@@ -239,7 +253,11 @@ exports.dispatch = async function dispatch(request) {
           }
         }
 
-        // key_material is sensitive: never stored in plaintext
+        // Fault hook injection for crash recovery testing (disabled by default)
+        if (process.env.TRACK4_FAULT_HOOK === 'mid_setup') {
+          process.kill(process.pid, 'SIGKILL');
+        }
+
         saveState(stateDir, state);
         return { ready: true };
       }
@@ -261,12 +279,19 @@ exports.dispatch = async function dispatch(request) {
         if (isOwner && !isDisabled && !isRevoked) {
           const record = state.encrypted_assets.get(asset);
           if (record) {
-            decision = 'allow';
-            bodyContent = decryptBody(record, kek);
+            const keyVer = record.key_version || 1;
+            if (km.canUseForDecryption(keyVer)) {
+              const kekObj = km.getKeyByVersion(keyVer);
+              if (kekObj) {
+                const kek = Buffer.from(kekObj.keyHex, 'hex');
+                decision = 'allow';
+                bodyContent = decryptBodyWithKey(record, kek);
+              }
+            }
           }
         }
 
-        // Audit integrity: First-Write-Wins (do not overwrite existing request_id)
+        // Audit integrity: First-Write-Wins
         if (!state.audit_events.has(requestId)) {
           state.audit_events.set(requestId, {
             request_id: requestId,
@@ -284,7 +309,14 @@ exports.dispatch = async function dispatch(request) {
       case 'revoke': {
         const actor = validateStringId(request.actor, 'actor');
         const state = loadState(stateDir);
+
+        // Fault hook injection for crash recovery testing
+        if (process.env.TRACK4_FAULT_HOOK === 'mid_revoke') {
+          process.kill(process.pid, 'SIGKILL');
+        }
+
         state.revoked.add(actor);
+        state.epoch = (state.epoch || 1) + 1;
         saveState(stateDir, state);
         return {};
       }
@@ -299,7 +331,8 @@ exports.dispatch = async function dispatch(request) {
             decision: entry.decision
           };
         }
-        // Unknown request_id returns safe not-found / deny without crashing
+        // Requirement 8: For unknown request_id, return safe deny response
+        // without inventing a phantom entry in the audit database.
         return {
           request_id: requestId,
           decision: 'deny'
@@ -324,13 +357,12 @@ exports.dispatch = async function dispatch(request) {
 
         const state = loadState(stateDir);
 
-        // Authorization check BEFORE any KEM operation (prevents oracle & timing attacks)
+        // Authorization check BEFORE any KEM operation
         const isOwner = state.owners.get(asset) === actor;
         const isDisabled = state.disabled.has(actor);
         const isRevoked = state.revoked.has(actor);
         const record = state.encrypted_assets.get(asset);
 
-        // If unauthorized or unknown asset, deny immediately
         if (!isOwner || isDisabled || isRevoked || !record) {
           if (request.request_id && typeof request.request_id === 'string') {
             if (!state.audit_events.has(request.request_id)) {
@@ -344,8 +376,18 @@ exports.dispatch = async function dispatch(request) {
           return { decision: 'deny' };
         }
 
+        const keyVer = record.key_version || 1;
+        if (!km.canUseForDecryption(keyVer)) {
+          return { decision: 'deny' };
+        }
+        const kekObj = km.getKeyByVersion(keyVer);
+        if (!kekObj) {
+          return { decision: 'deny' };
+        }
+        const kek = Buffer.from(kekObj.keyHex, 'hex');
+
         // Decrypt stored body
-        const body = decryptBody(record, kek);
+        const body = decryptBodyWithKey(record, kek);
 
         // Import standard raw ML-KEM-768 public key
         const spkiDer = Buffer.concat([ML_KEM_768_SPKI_PREFIX, rawPk]);
@@ -354,7 +396,7 @@ exports.dispatch = async function dispatch(request) {
         // Native KEM encapsulation
         const { sharedKey, ciphertext } = crypto.encapsulate(keyObj);
 
-        // Compute HMAC proof: HMAC-SHA256(sharedKey, UTF-8(challenge + body))
+        // Compute HMAC proof
         const proof = crypto.createHmac('sha256', sharedKey)
           .update(Buffer.from(challenge + body, 'utf8'))
           .digest('hex')
@@ -376,6 +418,27 @@ exports.dispatch = async function dispatch(request) {
           ciphertext: ciphertext.toString('base64'),
           proof
         };
+      }
+
+      // Integrated re-wrap operation on key rotation
+      case 'rewrap_keys': {
+        const activeKekObj = km.getActiveKey();
+        const activeKek = Buffer.from(activeKekObj.keyHex, 'hex');
+        const state = loadState(stateDir);
+
+        for (const [assetId, record] of state.encrypted_assets.entries()) {
+          const oldVer = record.key_version || 1;
+          if (oldVer !== activeKekObj.version) {
+            const oldKekObj = km.getKeyByVersion(oldVer);
+            if (oldKekObj) {
+              const oldKek = Buffer.from(oldKekObj.keyHex, 'hex');
+              const body = decryptBodyWithKey(record, oldKek);
+              state.encrypted_assets.set(assetId, encryptBodyWithKey(body, activeKek, activeKekObj.version));
+            }
+          }
+        }
+        saveState(stateDir, state);
+        return { rewrapped: true, active_version: activeKekObj.version };
       }
 
       default:

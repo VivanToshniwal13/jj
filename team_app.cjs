@@ -48,50 +48,77 @@ async function withStateLock(stateDir, fn) {
   const lockPath = path.join(stateDir, 'state.lock');
   const lockToken = crypto.randomUUID();
   const start = Date.now();
-  let fd = null;
+  let lockFd = null;
+  let lockIno = null;
 
   while (Date.now() - start < LOCK_TIMEOUT_MS) {
+    const tmpLockPath = path.join(stateDir, `state_lock.tmp.${process.pid}.${lockToken}`);
     try {
-      fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+      const payload = JSON.stringify({ pid: process.pid, token: lockToken, createdAt: Date.now() });
+      const tmpFd = fs.openSync(tmpLockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
       try {
-        const payload = JSON.stringify({ pid: process.pid, token: lockToken, createdAt: Date.now() });
-        fs.writeSync(fd, `${payload}\n`);
-        fs.fsyncSync(fd);
-      } catch {}
+        fs.writeSync(tmpFd, `${payload}\n`);
+        fs.fsyncSync(tmpFd);
+      } finally {
+        fs.closeSync(tmpFd);
+      }
+
+      fs.linkSync(tmpLockPath, lockPath);
+      try { fs.unlinkSync(tmpLockPath); } catch {}
+
+      lockFd = fs.openSync(lockPath, 'r');
+      lockIno = fs.fstatSync(lockFd).ino;
       break;
     } catch (err) {
+      try { if (fs.existsSync(tmpLockPath)) fs.unlinkSync(tmpLockPath); } catch {}
+
       if (err.code === 'EEXIST') {
         let isDead = false;
+        let lockContent = null;
         try {
-          const content = fs.readFileSync(lockPath, 'utf8').trim();
-          if (content) {
-            let parsed;
-            try {
-              parsed = JSON.parse(content);
-              if (typeof parsed === 'number') {
-                parsed = { pid: parsed };
+          if (fs.existsSync(lockPath)) {
+            const stat = fs.statSync(lockPath);
+            if (stat.size === 0) {
+              if (Date.now() - stat.mtimeMs > 300) {
+                isDead = true;
               }
-            } catch {
-              const lockPid = parseInt(content, 10);
-              if (!isNaN(lockPid)) parsed = { pid: lockPid };
-            }
-            if (parsed && typeof parsed.pid === 'number') {
-              try {
-                process.kill(parsed.pid, 0); // Check if process still exists
-              } catch (kerr) {
-                if (kerr.code === 'ESRCH') {
-                  // Process holding lock is reliably dead - break stale lock immediately
-                  isDead = true;
-                }
-              }
+            } else {
+              lockContent = fs.readFileSync(lockPath, 'utf8').trim();
             }
           }
-        } catch {
-          // Lock might have been released or stat failed
+        } catch {}
+
+        if (lockContent) {
+          let parsed;
+          try {
+            parsed = JSON.parse(lockContent);
+            if (typeof parsed === 'number') {
+              parsed = { pid: parsed };
+            }
+          } catch {
+            const lockPid = parseInt(lockContent, 10);
+            if (!isNaN(lockPid)) parsed = { pid: lockPid };
+          }
+          if (parsed && typeof parsed.pid === 'number') {
+            try {
+              process.kill(parsed.pid, 0); // Check if process still exists
+            } catch (kerr) {
+              if (kerr.code === 'ESRCH') {
+                isDead = true;
+              }
+            }
+          } else if (parsed === undefined) {
+            isDead = true;
+          }
         }
 
         if (isDead) {
-          try { fs.unlinkSync(lockPath); } catch {}
+          // Atomic rename for race-free stale recovery
+          const staleClaimPath = `${lockPath}.stale.${crypto.randomUUID()}`;
+          try {
+            fs.renameSync(lockPath, staleClaimPath);
+            try { fs.unlinkSync(staleClaimPath); } catch {}
+          } catch (_) {}
           continue;
         }
 
@@ -103,29 +130,33 @@ async function withStateLock(stateDir, fn) {
     }
   }
 
-  if (fd === null) {
+  if (lockFd === null) {
     throw new Error('Lock acquisition timeout');
   }
 
   try {
     return await fn();
   } finally {
-    try { fs.closeSync(fd); } catch {}
     try {
-      if (fs.existsSync(lockPath)) {
-        const content = fs.readFileSync(lockPath, 'utf8').trim();
-        let parsed;
-        try {
-          parsed = JSON.parse(content);
-        } catch {
-          const lockPid = parseInt(content, 10);
-          if (!isNaN(lockPid)) parsed = { pid: lockPid, token: null };
-        }
-        if (parsed && parsed.token === lockToken && parsed.pid === process.pid) {
-          fs.unlinkSync(lockPath);
+      if (lockFd !== null && fs.existsSync(lockPath)) {
+        const curStat = fs.statSync(lockPath);
+        if (curStat.ino === lockIno) {
+          const content = fs.readFileSync(lockPath, 'utf8').trim();
+          let parsed;
+          try {
+            parsed = JSON.parse(content);
+            if (typeof parsed === 'number') parsed = { pid: parsed, token: null };
+          } catch {
+            const lockPid = parseInt(content, 10);
+            if (!isNaN(lockPid)) parsed = { pid: lockPid, token: null };
+          }
+          if (parsed && parsed.token === lockToken && parsed.pid === process.pid) {
+            fs.unlinkSync(lockPath);
+          }
         }
       }
     } catch {}
+    try { if (lockFd !== null) fs.closeSync(lockFd); } catch {}
   }
 }
 

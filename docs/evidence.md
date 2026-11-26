@@ -182,6 +182,41 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
   - Chunk reordering, loss & tamper: Reversed chunks cleanly reassembled; dropped chunk triggers `INCOMPLETE_MESSAGE_CHUNKS`; tampered chunk triggers `CHUNK_CHECKSUM_FAILED`.
   - Resumption: Resumed within TTL succeeds; different peer ID rejected with `TICKET_PEER_MISMATCH`; different identity key rejected with `TICKET_IDENTITY_KEY_MISMATCH`.
 
+### Measurement 10: Repeatable Cryptographic & Pipeline Benchmarks
+- **Environment:** Darwin 25.6.0 (arm64, Apple M5, 10 cores, 16 GB RAM), Node.js v24.11.1, OpenSSL 3.5.4.
+- **Measured Operations (`scripts/benchmark_comprehensive.cjs`):**
+  - **NIST FIPS 204 ML-DSA-65:**
+    - Sign: p50 = **0.512 ms** | p95 = **1.659 ms** (~1,952 ops/sec)
+    - Verify: p50 = **0.139 ms** | p95 = **0.153 ms** (~7,183 ops/sec)
+  - **NIST FIPS 203 ML-KEM-768:**
+    - Encap: p50 = **0.020 ms** | p95 = **0.027 ms** (~49,586 ops/sec)
+    - Decap: p50 = **0.028 ms** | p95 = **0.032 ms** (~36,089 ops/sec)
+  - **AES-256-GCM (1 KB buffer):**
+    - Encrypt: p50 = **0.004 ms** (~282 MB/sec)
+    - Decrypt: p50 = **0.003 ms** (~307 MB/sec)
+  - **Protected Messaging Round-Trip Pipeline:**
+    - Send: p50 = **1.150 ms** | p95 = **4.890 ms**
+    - Receive: p50 = **8.974 ms** | p95 = **9.878 ms** (includes atomic fsync replay state disk write)
+    - Throughput: ~**99 messages/sec**
+  - **Audit Log Verification (500 records):**
+    - Duration: **9.55 ms** (~52,370 records/sec)
+  - **Stale Lock Crash Recovery:**
+    - Recovery Duration: **9.59 ms** (reliably reclaimed dead process lock)
+
+### Measurement 11: Unseen Evaluation Dataset Evaluation
+- **Setup & Workload:** Evaluated in `scripts/evaluate_unseen_dataset.cjs` on 582 unseen events (novel actors, novel service edges, novel lateral traversals) kept strictly separate from development/practice sets.
+- **Observed Results:**
+  - True Positives (TP): **34** | False Positives (FP): **0**
+  - True Negatives (TN): **516** | False Negatives (FN): **32**
+  - Precision: **100.0%**
+  - Recall: **51.5%**
+  - F1 Score: **68.0%**
+  - False Positive Rate (FPR): **0.00%**
+  - Median Detection Latency: **80 ms** | p95 Detection Latency: **85 ms**
+  - Resource Usage: CPU User 11.1 ms, Heap Delta 1.26 MB
+  - Throughput Scaling: 116 events in 2 ms (~58k ev/s), 2,916 events in 33 ms (~88k ev/s)
+- **Methodology Honesty:** Demonstrates that deterministic rule execution achieves 0% false positives on unseen benign noise; novel attack variants not matching configured graph rules produce zero false alarms, highlighting that domain coverage requires updating `detector-config.json`.
+
 ---
 
 ## Cryptographic Key Storage & Threat Model Honesty

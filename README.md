@@ -45,7 +45,7 @@ Start the local interactive operator dashboard:
 ```bash
 node bin/dashboard.cjs
 ```
-Open `http://localhost:8080` in your browser.
+Open `http://127.0.0.1:3400` in your browser.
 
 ---
 
@@ -69,7 +69,8 @@ Prototype Guard ]   Envelope Engine ]       Encapsulation ]
     │                     │                     │
     ▼                     ▼                     ▼
 [ Device Lifecycle ] [ Replay & Lockout ] [ PQC Messaging ]
- (ML-DSA Enrolment)   (30s auto-lockout)   (Forward secrecy)
+ (ML-DSA Enrolment)  (alert-only; lockout (Forward secrecy)
+                           opt-in)
                           │
                           ▼
         [ O_EXCL Atomic File Locking ]
@@ -98,7 +99,7 @@ Prototype Guard ]   Envelope Engine ]       Encapsulation ]
 * **Key Rotation with 5-Node Cutoff (Goal 1)**:
   * Key rotation enforces a documented grace period and cutoff. In-flight requests initiated before cutoff complete, while requests after cutoff are rejected across all 5 nodes with `KEY_VERSION_CUTOFF_EXPIRED`.
 * **Post-Quantum Protected Messaging (Goals 9, 10, 11, 12)**:
-  * Ephemeral per-session ML-KEM-768 prekeys signed by ML-DSA-65 identity keys, HKDF-SHA256 derivation, AES-256-GCM encryption with complete AAD recipient binding, ML-DSA-65 signatures, replay cache keying on `(sender, message_id, sequence)`, forward secrecy via ephemeral private key erasure, sequenced chunking with SHA-256 checksums, and resumption tickets loaded from `$TRACK4_STATE_DIR/ticket_key.bin` (mode 0600) binding peer identity.
+  * Ephemeral per-session ML-KEM-768 prekeys signed by ML-DSA-65 identity keys, HKDF-SHA256 derivation, AES-256-GCM encryption with complete AAD recipient binding, ML-DSA-65 signatures, replay cache keying on `(sender, message_id, sequence)`, forward secrecy via ephemeral private key erasure, sequenced chunks authenticated with ML-DSA-65 (CHUNK_AUTH_FAILED on tamper; INCOMPLETE_MESSAGE_CHUNKS on loss), and resumption tickets loaded from `$TRACK4_STATE_DIR/ticket_key.bin` (mode 0600) binding peer identity.
 * **Safe Alert-Only Default (Assessment Response)**:
   * To prevent denial-of-service through asserted caller identities, anomaly detection defaults to alert-only logging to `audit.log` and `stderr`. Automated 30s lockout is strictly opt-in via `TRACK4_LIVE_LOCKOUT=1`. An actor with 5 denied reads reading their own asset continues to receive `allow`.
 * **Audit Log Anchoring & Limitations**:
@@ -141,7 +142,7 @@ Evaluation Scripts:
 5. **Concurrency Safety**: High-concurrency operations are protected by an `O_EXCL` atomic lockfile with bounded retries and stale-lock recovery. Tested with 50 concurrent child processes.
 6. **Crash Recovery & Rollback Protection**: State files use atomic rename and `fsync`. Backups use Scrypt KDF ($N=32768, r=8, p=1$) and ML-DSA-65 signatures, preserving prior revocations upon restore.
 7. **Scale Resilience**: Tested with 10,000 historical audit records (3.11 MB log on disk). Decoupled `AuditIndex` maintains O(1) indexed lookup with flat ~58 ms cold-start CLI latency.
-8. **Live Security Response**: Repeated denials ($\ge 3$) trigger a temporary 30-second actor lockout. Security alerts are recorded in the audit log and emitted to `stderr` without polluting adapter `stdout`.
+8. **Live Security Response**: repeated denials (>=3), asset enumeration and post-revocation reads raise alerts in audit.log and stderr. Default is alert-only; a 30 s lockout is opt-in via TRACK4_LIVE_LOCKOUT=1.
 
 ---
 

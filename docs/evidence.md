@@ -5,6 +5,19 @@ Environment: macOS arm64 (host) / Node.js v24.11.1 / OpenSSL 3.5.4 / Python 3.15
 
 ---
 
+## Required Numbers Summary
+
+| Metric | Measured Value / Bound | Source / Notes |
+| :--- | :--- | :--- |
+| **Grace period** | 60 s | Monotonic retirement cutoff (`KeyLifecycleManager`) |
+| **Revocation time to last node** | 20 ms | Single-host 5-node simulation with partition catch-up (`tests/distributed_partition.test.cjs`) |
+| **Supported timing range** | ±5,000 ms (±500 ms flagged as uncertain order) | Logic and collector timeline alignment (`lib/detector.cjs`) |
+| **F1 score** | 100.0% (22-event practice set; functional check, not an accuracy claim) | Practice evaluation dataset (`docs/results/detector_practice_evaluation.json`) |
+| **Median time to alert** | 100 ms practice / 80 ms synthetic | Practice evaluation & synthetic attack benchmark (`docs/results/attack_evaluation_results.json`) |
+| **False alerts per 1,000 benign** | 0 | Self-generated benign routine dataset (`docs/results/benign_evaluation_results.json`) |
+
+---
+
 ## Published Goals & Status Summary
 
 Status values: `measured`, `partial`, `not tested`, `not supported`.
@@ -83,7 +96,7 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
     - Exact label match: **22 / 22 (100.0%)**
     - Alert Detection Precision: **100.0%**
     - Alert Detection Recall: **100.0%**
-    - Alert Detection F1: **100.0%**
+    - Alert Detection F1: **100.0%** (22-event practice set; functional check, not an accuracy claim)
     - Proper Median Time to Alert: **100 ms** (alert arrival time - estimated event time)
   - **Synthetic Attack Dataset (51 events, 44 attacks):**
     - Expected Attacks in Set: **44**

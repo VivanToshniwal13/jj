@@ -122,12 +122,12 @@ class DashboardSimulationEngine {
       op: "setup",
       owners: {
         doc_001: "maya",
-        ehr_record_9: "alex"
+        report_q3: "alex"
       },
       disabled: ["admin_eve"],
       contents: {
-        doc_001: "Patient medical record #101: Normal cardiac vitals",
-        ehr_record_9: "EHR record 9: Blood chemistry panel complete"
+        doc_001: "Synthetic data record #101: Normal telemetry vitals",
+        report_q3: "Synthetic report Q3: Data analysis panel complete"
       }
     });
 
@@ -149,7 +149,7 @@ class DashboardSimulationEngine {
     const pReadAlex = await teamApp.dispatch({
       op: "read",
       actor: "alex",
-      asset: "ehr_record_9",
+      asset: "report_q3",
       request_id: "req-read-alex"
     });
 
@@ -169,7 +169,7 @@ class DashboardSimulationEngine {
       {
         request_id: "req-read-alex",
         actor: "alex",
-        asset: "ehr_record_9",
+        asset: "report_q3",
         decision: pReadAlex.decision,
         algorithm: "AES-256-GCM (KEK-v1)",
         ciphertext_len: "48 bytes",
@@ -183,13 +183,13 @@ class DashboardSimulationEngine {
     this.actors = [
       { id: "maya", role: "Asset Owner", device: "device-maya-1 (Active)", status: "allowed" },
       { id: "alex", role: "Asset Owner", device: "device-alex-1 (Active)", status: "allowed" },
-      { id: "doctor_rao", role: "Clinician", device: "device-rao-1", status: "allowed" },
+      { id: "analyst_rao", role: "Analyst", device: "device-rao-1", status: "allowed" },
       { id: "admin_eve", role: "Auditor", device: "device-eve-1", status: "disabled" }
     ];
 
     this.assets = [
       { id: "doc_001", owner: "maya", cipher: "AES-256-GCM (Encrypted)", status: "active" },
-      { id: "ehr_record_9", owner: "alex", cipher: "AES-256-GCM (Encrypted)", status: "active" }
+      { id: "report_q3", owner: "alex", cipher: "AES-256-GCM (Encrypted)", status: "active" }
     ];
 
     const log = new TamperEvidentLog(this.stateDir);
@@ -211,8 +211,8 @@ class DashboardSimulationEngine {
 
     this.stepNarration = {
       what: "Initialized post-quantum protected storage with AES-256-GCM and performed verified reads for Maya and Alex.",
-      why: "Protects patient files and clinician records at rest with independent ownership and post-quantum forward secrecy.",
-      real_result: `doc_001 (maya) & ehr_record_9 (alex) encrypted. ML-KEM-768 proof verified in ${latMaya || 14} ms.`
+      why: "Protects synthetic files and analyst records at rest with independent ownership and post-quantum forward secrecy.",
+      real_result: `doc_001 (maya) & report_q3 (alex) encrypted. ML-KEM-768 proof verified in ${latMaya || 14} ms.`
     };
   }
 
@@ -283,7 +283,7 @@ class DashboardSimulationEngine {
     const rAlex = await teamApp.dispatch({
       op: "read",
       actor: "alex",
-      asset: "ehr_record_9",
+      asset: "report_q3",
       request_id: "req-alex-unaffected"
     });
 
@@ -347,14 +347,14 @@ class DashboardSimulationEngine {
     const pAlex = await teamApp.dispatch({
       op: "read",
       actor: "alex",
-      asset: "ehr_record_9",
+      asset: "report_q3",
       request_id: "req-rot-003"
     });
 
     this.liveDecisions.unshift({
       request_id: "req-rot-003",
       actor: "alex",
-      asset: "ehr_record_9",
+      asset: "report_q3",
       decision: pAlex.decision,
       algorithm: "AES-256-GCM (KEK-v2)",
       ciphertext_len: "168 bytes",
@@ -533,7 +533,7 @@ class DashboardSimulationEngine {
         actor: "intruder_blair",
         event_ids: ["evt-lat-001"],
         graph_path: "reports → billing",
-        reason: "Actor intruder_blair requested unapproved role escalation from clinician to admin."
+        reason: "Actor intruder_blair requested unapproved role escalation from analyst to admin."
       },
       {
         alert_id: "ALT-LATERAL-flow-lateral-x",

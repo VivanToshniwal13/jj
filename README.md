@@ -2,7 +2,7 @@
 
 **Submission Repository for Yugaantar DevForge Track 4**
 
-Post-quantum cryptographic access control, tamper-evident audit logging, and explainable privilege-escalation/lateral-movement detection.
+Post-quantum cryptographic access control, device lifecycle & re-enrolment, tamper-evident audit logging, post-quantum protected messaging, and explainable privilege-escalation/lateral-movement detection.
 
 ---
 
@@ -18,7 +18,7 @@ Post-quantum cryptographic access control, tamper-evident audit logging, and exp
 git clone https://github.com/VivanToshniwal13/ctrl-alt-delulu-track4.git
 cd ctrl-alt-delulu-track4
 
-# Run all 59 automated unit, hardening, and crash-recovery tests
+# Run all 73 automated unit, hardening, messaging, and crash-recovery tests
 ./run-tests.sh
 # or directly:
 node --test --test-concurrency=1 tests/*.cjs
@@ -50,6 +50,10 @@ python3 Track-4-Toolkit/validate.py --entry /path/to/ctrl-alt-delulu-track4/trac
 Prototype Guard ]   Envelope Engine ]       Encapsulation ]
  (Map/Set strictly    (Per-asset DEK        (Raw 1184-byte
   bounded IDs)         wrapped by KEK)       SPKI + HMAC proof)
+    │                     │                     │
+    ▼                     ▼                     ▼
+[ Device Lifecycle ] [ Replay & Lockout ] [ PQC Messaging ]
+ (ML-DSA Enrolment)   (30s auto-lockout)   (Forward secrecy)
                           │
                           ▼
         [ O_EXCL Atomic File Locking ]
@@ -73,6 +77,12 @@ Prototype Guard ]   Envelope Engine ]       Encapsulation ]
   * *Honest Threat Model Limitation*: At-rest encryption protects against partial disclosure (stolen backup exports, leaked ciphertext records, or processes without read permission to `kek.bin`). An adversary with full container read access to the state directory can read both the KEK and ciphertext. Sensitive `key_material` from setup is never stored in plaintext.
 * **Identity Assertion vs. Caller Authentication**:
   * Identity (`actor`) is asserted by the trusted caller (the worker harness) in the request payload; there is no cryptographic caller authentication in the process-per-request CLI adapter model. The adapter strictly enforces authorization policies (asset ownership, revocation lists, and disabled status) against the asserted identity.
+* **Device Enrolment & Re-enrolment (Goal 2)**:
+  * Devices are authorized using NIST FIPS 204 ML-DSA-65 signatures. Lost devices are revoked across all nodes; users re-enrol new devices via signed records without impacting peers.
+* **Key Rotation with 5-Node Cutoff (Goal 1)**:
+  * Key rotation enforces a documented grace period and cutoff. In-flight requests initiated before cutoff complete, while requests after cutoff are rejected across all 5 nodes with `KEY_VERSION_CUTOFF_EXPIRED`.
+* **Post-Quantum Protected Messaging (Goals 9, 10, 11, 12)**:
+  * Ephemeral ML-KEM-768 encapsulation, HKDF-SHA256 derivation, AES-256-GCM encryption with complete AAD recipient binding, ML-DSA-65 signatures, nonce replay cache, forward secrecy via ephemeral secret erasure, sequenced chunking, and session resumption tickets.
 * **Audit Log Anchoring & Limitations**:
   * The audit log is stored as append-only canonical JSON Lines with SHA-256 hash chaining and periodic ML-DSA-65 signed checkpoints.
   * *Honest Anchor Limitation*: If the authority private key sits in `$TRACK4_STATE_DIR`, an attacker with host filesystem write access can rewrite the log and re-sign checkpoints. To achieve immutable guarantees, signed heads can be exported externally via `bin/verify_log.cjs --export-head <path>` and verified with `--trusted-head`. Records appended *after* the latest checkpoint can be truncated without breaking the prior checkpoint.
@@ -83,10 +93,14 @@ Prototype Guard ]   Envelope Engine ]       Encapsulation ]
 
 ## 3. Explainable Anomaly & Lateral Movement Detector (Phase 4)
 
-CLI Entrypoint: `bin/detect.cjs --events <events.csv> --approvals <approvals.json>`  
-Evaluation Script: `node scripts/evaluate_detector.cjs`  
-Benign Baseline Generator: `node scripts/generate_benign_workload.cjs`  
-Synthetic Attack Set Evaluation: `node scripts/evaluate_attack_set.cjs`
+CLI Entrypoints:
+* Detector: `bin/detect.cjs --events <events.csv> --approvals <approvals.json>`
+* Live Alerts Inspector: `bin/alerts.cjs [--log <path>] [--json]`
+
+Evaluation Scripts:
+* `node scripts/evaluate_detector.cjs` (Practice dataset evaluation)
+* `node scripts/generate_benign_workload.cjs` (Benign baseline generator)
+* `node scripts/evaluate_attack_set.cjs` (Synthetic attack set evaluation)
 
 * **Strictly No ML/AI**: Explainable detection implemented via deterministic rules, graph traversal, and clock skew correction. Each alert carries a human-readable rule ID, triggering fields, and graph path.
 * **Configurable Baseline**: Baseline service edges and detection parameters are decoupled from code into `detector-config.json` (no hardcoded service or actor names).
@@ -100,7 +114,7 @@ Synthetic Attack Set Evaluation: `node scripts/evaluate_attack_set.cjs`
 
 ---
 
-## 4. Hardening & Defenses (Phases 1.5 - 3)
+## 4. Hardening & Defenses (Phases 1.5 - 5)
 
 1. **Prototype Pollution Immunity**: In-memory state uses `Map` and `Set` exclusively. User-controlled IDs never index plain JavaScript objects.
 2. **Path Traversal Immunity**: Asset IDs and actor IDs are never incorporated into filesystem paths. All state files use fixed or SHA-256-hashed filenames.
@@ -109,6 +123,7 @@ Synthetic Attack Set Evaluation: `node scripts/evaluate_attack_set.cjs`
 5. **Concurrency Safety**: High-concurrency operations are protected by an `O_EXCL` atomic lockfile with bounded retries and stale-lock recovery. Tested with 50 concurrent child processes.
 6. **Crash Recovery & Rollback Protection**: State files use atomic rename and `fsync`. Backups use Scrypt KDF ($N=32768, r=8, p=1$) and ML-DSA-65 signatures, preserving prior revocations upon restore.
 7. **Scale Resilience**: Tested with 10,000 historical audit records (3.11 MB log on disk). Decoupled `AuditIndex` maintains O(1) indexed lookup with flat ~58 ms cold-start CLI latency.
+8. **Live Security Response**: Repeated denials ($\ge 3$) trigger a temporary 30-second actor lockout. Security alerts are recorded in the audit log and emitted to `stderr` without polluting adapter `stdout`.
 
 ---
 

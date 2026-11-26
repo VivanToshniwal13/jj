@@ -2,16 +2,16 @@
 
 ## Page 1: USP, Architecture, and Fallback Video
 
-**Project:** Pseudora – Trust, but Verify  
+**Project:** Ctrl+Alt+Delulu – Trust, but Verify  
 **Team:** Ctrl+Alt+Delulu  
 **Repository and commit:** [https://github.com/VivanToshniwal13/ctrl-alt-delulu-track4](https://github.com/VivanToshniwal13/ctrl-alt-delulu-track4) / `dev`  
 **Demo entry point:** `python3 Track-4-Toolkit/validate.py --entry track4_service.cjs` & `bin/detect.cjs`
 
 ### Unique Selling Proposition (USP)
-Modern distributed infrastructures face severe risk when devices are lost or permissions unexpectedly mutate across post-quantum migration horizons. Pseudora provides post-quantum cryptographic access control combining NIST FIPS 203 ML-KEM-768 envelope encryption with tamper-evident audit logging and deterministic, explainable lateral-movement detection. By enforcing immediate, monotonic revocations and crash-resilient storage without external cloud dependencies, our solution guarantees that compromised identities cannot access protected medical or enterprise assets. What distinguishes Pseudora is its zero-runtime npm footprint, sub-50ms execution speed, and explainable rule-and-graph anomaly engine that operates entirely without black-box machine learning.
+Modern distributed infrastructures face severe risk when devices are lost or permissions unexpectedly mutate across post-quantum migration horizons. Ctrl+Alt+Delulu provides post-quantum cryptographic access control combining NIST FIPS 203 ML-KEM-768 envelope encryption and protected messaging with tamper-evident audit logging and deterministic, explainable lateral-movement detection. By enforcing immediate, monotonic revocations across distributed nodes, device re-enrolment, and crash-resilient storage without external cloud dependencies, our solution guarantees that compromised identities cannot access protected enterprise or medical assets. What distinguishes Ctrl+Alt+Delulu is its zero-runtime npm footprint, sub-50ms execution speed, forward secrecy with replay defense, and explainable rule-and-graph anomaly engine that operates entirely without black-box machine learning.
 
 ### Architecture
-Pseudora is structured around four tightly integrated, offline software layers built natively on Node.js 24.11.1 and OpenSSL 3.5.4:
+Ctrl+Alt+Delulu is structured around four tightly integrated, offline software layers built natively on Node.js 24.11.1 and OpenSSL 3.5.4:
 
 ```text
 [ Evaluator / Client Request ] ──(stdin JSON)──> [ track4_service.cjs ]
@@ -20,7 +20,9 @@ Pseudora is structured around four tightly integrated, offline software layers b
 [ Anomaly & Graph Detector ] ──(audit events)─── [ team_app.cjs ]
 (lib/detector.cjs - 0 ML)                        ├── Authorization Guard (Map/Set)
                                                  ├── AES-256-GCM Envelope Engine
-                                                 └── NIST ML-KEM-768 Encapsulation
+                                                 ├── NIST ML-KEM-768 Encapsulation
+                                                 ├── Device Enrolment & Revocation
+                                                 └── Post-Quantum Messaging Engine
                                                         │
                                                         ▼
                                                  [ $TRACK4_STATE_DIR ]
@@ -31,8 +33,9 @@ Pseudora is structured around four tightly integrated, offline software layers b
 
 1. **Adapter Transport & Authorization**: `track4_service.cjs` and `team_app.cjs` process process-per-request JSON over stdin/stdout. Identity is asserted by the caller, and the engine enforces asset ownership, disabling, and revocation before invoking any cryptographic operations.
 2. **Post-Quantum Cryptographic Engine**: Content bodies are protected via AES-256-GCM envelope encryption using per-asset Data Encryption Keys (DEKs) wrapped by a versioned Key Encryption Key (KEK). Post-quantum handshakes execute native ML-KEM-768 public key encapsulation with standard 22-byte SPKI reconstruction, generating 32-byte shared secrets and HMAC-SHA-256 proofs.
-3. **Crash Recovery & Hash-Chained Auditing**: State mutations persist atomically via `fsync` and temporary file renaming. All operations append to `audit.log`, a canonical JSON Lines ledger hash-chained via SHA-256 and periodically signed with NIST FIPS 204 ML-DSA-65 checkpoints.
-4. **Explainable Detection Engine**: `lib/detector.cjs` ingests events, normalizes clock skew, matches role changes against structured change-control approvals, and traverses service graphs to detect multi-hop lateral movement across distinct service targets.
+3. **Device Lifecycle & Protected Messaging**: Device enrolment uses NIST FIPS 204 ML-DSA-65 signatures. Lost devices are revoked across all nodes while peer users remain unaffected. Protected messaging (`lib/messaging.cjs`) delivers forward secrecy via ephemeral ML-KEM-768 key encapsulation, nonce replay defense, and authenticated recipient identity binding.
+4. **Crash Recovery & Hash-Chained Auditing**: State mutations persist atomically via `fsync` and temporary file renaming. All operations append to `audit.log`, a canonical JSON Lines ledger hash-chained via SHA-256 and periodically signed with NIST FIPS 204 ML-DSA-65 checkpoints.
+5. **Explainable Detection Engine**: `lib/detector.cjs` ingests events, normalizes clock skew, matches role changes against structured change-control approvals, and traverses service graphs to detect multi-hop lateral movement across distinct service targets.
 
 ### Accessible Five-Minute Fallback Video Link
 
@@ -40,10 +43,10 @@ Pseudora is structured around four tightly integrated, offline software layers b
 **Duration:** 05:00 minutes  
 **Access checked:** 2026-11-26 (Confirmed open access without permission prompts)
 
-The demonstration walks through clean setup, authorized owner reads, post-quantum ML-KEM-768 protected reads, immediate device revocation, crash recovery mid-revoke via `SIGKILL`, audit hash-chain verification with `bin/verify_log.cjs`, and live explainable lateral-movement detection across practice and synthetic attack datasets.
+The demonstration walks through clean setup, authorized owner reads, post-quantum ML-KEM-768 protected reads, immediate device revocation and new device re-enrolment, key rotation with 5-node cutoff enforcement, crash recovery mid-revoke via `SIGKILL`, audit hash-chain verification with `bin/verify_log.cjs`, protected messaging with replay rejection, and live explainable lateral-movement detection across practice and synthetic attack datasets.
 
 **Observed outcome:**
-The automated validator achieves 20/20 checks with zero information leakage. Benchmarks confirm sub-50ms cold-start execution on macOS/Linux hosts, 100% recall on 50+ diverse attack scenarios, and 0 false alerts across 1,000 synthetic routine events.
+The automated validator achieves 20/20 checks with zero information leakage. Benchmarks confirm sub-50ms cold-start execution on macOS/Linux hosts, 100% recall on 50+ diverse attack scenarios, 73/73 passing unit and hardening tests, and 0 false alerts across 1,000 synthetic routine events.
 
 <div style="page-break-before: always;"></div>
 
@@ -53,19 +56,22 @@ The automated validator achieves 20/20 checks with zero information leakage. Ben
 - **Asset Payloads (Confidentiality & Integrity)**: Protected by AES-256-GCM envelope encryption. Decryption strictly requires owner authorization and challenge/response verification.
 - **Key Material & KEKs (Confidentiality & Authenticity)**: KEK stored under Unix mode `0600` (`kek.bin`). Sensitive setup keys are never persisted in plaintext.
 - **Authorization & State Registry (Integrity & Monotonicity)**: Monotonic versioning and atomic `fsync` prevent lost updates or corruption.
-- **Revocation Lists & Log Checkpoints (Authenticity & Non-Repudiation)**: Digitally signed using ML-DSA-65 post-quantum keys.
+- **Revocation Lists & Device Enrolments (Authenticity & Non-Repudiation)**: Digitally signed using ML-DSA-65 post-quantum keys.
 - **Audit Logs (Tamper-Evidence & Completeness)**: Canonical SHA-256 hash chains detect line modifications, reordering, injection, and truncation.
+- **Messages in Transit (Confidentiality, Authenticity & Forward Secrecy)**: Ephemeral ML-KEM-768 encapsulation, HKDF-SHA256, and AES-256-GCM with full AAD recipient binding.
 
 ### Adversaries
-- **External Network Adversary**: Submits malformed payloads, fuzzes parameters, and attempts prototype pollution (`__proto__`), path traversal (`../`), and CRLF log injection.
+- **External Network Adversary**: Submits malformed payloads, fuzzes parameters, and attempts prototype pollution (`__proto__`), path traversal (`../`), message replays, and CRLF log injection.
 - **Compromised Account / Malicious Insider**: Holds valid credentials; attempts unauthorized access, unapproved role changes, accesses outside approved time windows, or lateral traversal across internal microservices.
 - **Compromised Service Node**: Network partitioned or replaying expired revocation broadcasts.
+- **Lost / Stolen Device**: Stolen device key used to access files post-loss.
 - **Local Host Root**: Full filesystem access to the container. *Explicitly out of scope for local software isolation.*
 
 ### Trust Boundaries
 1. **Request Ingestion Boundary**: Validates types, bounds IDs ($\le 128$ chars), enforces strict Base64 formatting for 1,184-byte KEM keys, and neutralizes prototype pollution using `Map` and `Set`.
 2. **Authorization Boundary**: Access checks occur **before** KEM encapsulation, eliminating existence oracles.
 3. **Persistence Boundary**: Atomic rename and `O_EXCL` file locking prevent concurrent write corruption and lost updates.
+4. **Messaging Boundary**: Ephemeral KEM exchange ensures past messages cannot be decrypted even if long-term identity keys are compromised.
 
 ### Assumptions
 - Identity (`actor`) is asserted by the trusted caller (evaluator); adapter enforces authorization policies over asserted identities.
@@ -77,6 +83,8 @@ The automated validator achieves 20/20 checks with zero information leakage. Ben
 - **Crash Recovery & Lock Safety**: Survives process kill hooks (`SIGKILL`) mid-setup and mid-revoke with zero state corruption.
 - **Rollback Protection**: Restoring an older backup preserves prior revocations and advances the epoch, verified in `tests/rollback_protection.test.cjs`.
 - **Explainable Anomaly Detection**: Deterministic graph and approval rules detect unapproved role changes, lateral traversals, and out-of-scope access with 100% recall on 51 synthetic test events and 0 false alerts on 1,000 routine events.
+- **Device Lifecycle**: Lost device is revoked across all 5 nodes; Maya enrolls a new device and recovers access; peer Alex is unaffected.
+- **Replay & Forward Secrecy**: Replay cache rejects duplicate messages; ephemeral secret keys are zeroized immediately after decapsulation.
 
 ### Exclusions and Remaining Risks
 - **Host Compromise**: An adversary with root access to `$TRACK4_STATE_DIR` can read `kek.bin` and the local checkpoint key. Hardware HSM/TPM protection is required to resist host root compromise.

@@ -109,6 +109,11 @@ function createEmptyState() {
     owners: new Map(),           // asset_id -> actor_id
     disabled: new Set(),         // Set of actor_id
     revoked: new Set(),          // Set of actor_id
+    enrolled_devices: new Map(), // actor_id -> { device_id, public_key, enrolled_at }
+    revoked_devices: new Set(),  // Set of device_id
+    lockouts: new Map(),         // actor_id -> lockout_expiry_timestamp
+    recent_denials: new Map(),   // actor_id -> [timestamps]
+    unknown_assets: new Map(),   // actor_id -> [{ asset, time }]
     encrypted_assets: new Map(), // asset_id -> encrypted_record
     audit_events: new Map()      // request_id -> { request_id, decision }
   };
@@ -127,6 +132,11 @@ function loadState(stateDir) {
     owners: new Map(parsed.owners || []),
     disabled: new Set(parsed.disabled || []),
     revoked: new Set(parsed.revoked || []),
+    enrolled_devices: new Map(parsed.enrolled_devices || []),
+    revoked_devices: new Set(parsed.revoked_devices || []),
+    lockouts: new Map(parsed.lockouts || []),
+    recent_denials: new Map(parsed.recent_denials || []),
+    unknown_assets: new Map(parsed.unknown_assets || []),
     encrypted_assets: new Map(parsed.encrypted_assets || []),
     audit_events: new Map(parsed.audit_events || [])
   };
@@ -139,10 +149,86 @@ function saveState(stateDir, state) {
     owners: Array.from(state.owners.entries()),
     disabled: Array.from(state.disabled),
     revoked: Array.from(state.revoked),
+    enrolled_devices: Array.from(state.enrolled_devices.entries()),
+    revoked_devices: Array.from(state.revoked_devices),
+    lockouts: Array.from(state.lockouts.entries()),
+    recent_denials: Array.from(state.recent_denials.entries()),
+    unknown_assets: Array.from(state.unknown_assets.entries()),
     encrypted_assets: Array.from(state.encrypted_assets.entries()),
     audit_events: Array.from(state.audit_events.entries())
   });
   durableWriteFile(storePath, Buffer.from(serialized, 'utf8'), 0o600);
+}
+
+// Live Detection & Automated Response
+function checkLiveRulesAndRespond(state, actor, asset, op, request, stateDir, tamperLog) {
+  const now = Date.now();
+  const alerts = [];
+
+  // Rule 1: Malformed or injection-like requests
+  const reqStr = JSON.stringify(request);
+  if (reqStr.includes('__proto__') || reqStr.includes('constructor') || reqStr.includes('../') || reqStr.includes('\\0')) {
+    alerts.push({
+      rule_id: 'RULE_MALFORMED_INJECTION',
+      severity: 'HIGH',
+      actor: actor || 'unknown',
+      reason: 'Malformed injection pattern detected in request string'
+    });
+  }
+
+  // Rule 2: Read right after revocation
+  if (state.revoked.has(actor) && (op === 'read' || op === 'protected_read')) {
+    alerts.push({
+      rule_id: 'RULE_POST_REVOCATION_READ',
+      severity: 'MEDIUM',
+      actor,
+      reason: `Actor ${actor} attempted ${op} after revocation`
+    });
+  }
+
+  // Rule 3: Asset enumeration (querying multiple non-existent assets)
+  if (asset && !state.owners.has(asset) && !state.encrypted_assets.has(asset)) {
+    const list = state.unknown_assets.get(actor) || [];
+    list.push({ asset, time: now });
+    const recent = list.filter(x => now - x.time < 60000);
+    state.unknown_assets.set(actor, recent);
+    const distinct = new Set(recent.map(x => x.asset));
+    if (distinct.size >= 3) {
+      alerts.push({
+        rule_id: 'RULE_ASSET_ENUMERATION',
+        severity: 'CRITICAL',
+        actor,
+        reason: `Actor ${actor} enumerated ${distinct.size} non-existent assets within 60s`
+      });
+      state.lockouts.set(actor, now + 30000); // 30s automated lockout response
+    }
+  }
+
+  if (alerts.length > 0) {
+    for (const a of alerts) {
+      tamperLog.appendRecord('detector', 'alert', a);
+      process.stderr.write(`[SECURITY ALERT] ${a.rule_id}: ${a.reason}\n`);
+    }
+  }
+}
+
+function recordDenialForActor(state, actor, stateDir, tamperLog) {
+  const now = Date.now();
+  const list = (state.recent_denials.get(actor) || []).filter(t => now - t < 60000);
+  list.push(now);
+  state.recent_denials.set(actor, list);
+  if (list.length >= 3) {
+    const alertData = {
+      rule_id: 'RULE_REPEATED_DENIALS',
+      severity: 'CRITICAL',
+      actor,
+      denial_count: list.length,
+      reason: `Actor ${actor} accumulated ${list.length} consecutive denials within 60s`
+    };
+    tamperLog.appendRecord('detector', 'alert', alertData);
+    process.stderr.write(`[SECURITY ALERT] RULE_REPEATED_DENIALS: Actor ${actor} locked out for 30s\n`);
+    state.lockouts.set(actor, now + 30000); // 30s automated lockout response
+  }
 }
 
 // Safe ID and Input Validation
@@ -274,6 +360,32 @@ exports.dispatch = async function dispatch(request) {
 
         const state = loadState(stateDir);
 
+        // Live detection pre-check
+        checkLiveRulesAndRespond(state, actor, asset, 'read', request, stateDir, tamperLog);
+
+        // Check automated lockout response
+        const lockoutUntil = state.lockouts.get(actor);
+        if (lockoutUntil && Date.now() < lockoutUntil) {
+          tamperLog.appendRecord(actor, 'read', { asset, request_id: requestId, decision: 'deny', reason: 'ACTOR_LOCKED_OUT' });
+          if (!auditIndex.has(requestId)) {
+            auditIndex.record(requestId, 'deny');
+            state.audit_events.set(requestId, { request_id: requestId, decision: 'deny' });
+            saveState(stateDir, state);
+          }
+          return { decision: 'deny' };
+        }
+
+        // Check device-level revocation if device_id supplied
+        if (request.device_id && state.revoked_devices.has(request.device_id)) {
+          tamperLog.appendRecord(actor, 'read', { asset, device_id: request.device_id, decision: 'deny', reason: 'DEVICE_REVOKED' });
+          if (!auditIndex.has(requestId)) {
+            auditIndex.record(requestId, 'deny');
+            state.audit_events.set(requestId, { request_id: requestId, decision: 'deny' });
+            saveState(stateDir, state);
+          }
+          return { decision: 'deny' };
+        }
+
         const isOwner = state.owners.get(asset) === actor;
         const isDisabled = state.disabled.has(actor);
         const isRevoked = state.revoked.has(actor);
@@ -296,6 +408,12 @@ exports.dispatch = async function dispatch(request) {
           }
         }
 
+        if (decision === 'deny') {
+          recordDenialForActor(state, actor, stateDir, tamperLog);
+        } else {
+          state.recent_denials.delete(actor);
+        }
+
         // Audit integrity: First-Write-Wins
         if (!auditIndex.has(requestId)) {
           auditIndex.record(requestId, decision);
@@ -312,6 +430,27 @@ exports.dispatch = async function dispatch(request) {
           return { decision: 'allow', body: bodyContent };
         }
         return { decision: 'deny' };
+      }
+
+      case 'enrol_device': {
+        const actor = validateStringId(request.actor, 'actor');
+        const deviceId = validateStringId(request.device_id, 'device_id');
+        const state = loadState(stateDir);
+
+        if (request.previous_device_id) {
+          state.revoked_devices.add(validateStringId(request.previous_device_id, 'previous_device_id'));
+        }
+        state.revoked.delete(actor);
+        state.lockouts.delete(actor);
+        state.recent_denials.delete(actor);
+        state.enrolled_devices.set(actor, {
+          device_id: deviceId,
+          public_key: request.device_public_key || null,
+          enrolled_at: Date.now()
+        });
+        saveState(stateDir, state);
+        tamperLog.appendRecord('admin', 'enrol_device', { actor, device_id: deviceId, previous_revoked: request.previous_device_id || null });
+        return { enrolled: true, actor, device_id: deviceId };
       }
 
       case 'revoke': {
@@ -361,17 +500,53 @@ exports.dispatch = async function dispatch(request) {
         const challenge = validateStringId(request.challenge, 'challenge', MAX_CHALLENGE_LEN);
         const publicKeyB64 = request.public_key;
 
-        // Strict Base64 validation
+        const state = loadState(stateDir);
+
+        // Live detection check
+        checkLiveRulesAndRespond(state, actor, asset, 'protected_read', request, stateDir, tamperLog);
+
+        // Check automated lockout response
+        const lockoutUntil = state.lockouts.get(actor);
+        if (lockoutUntil && Date.now() < lockoutUntil) {
+          tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'deny', reason: 'ACTOR_LOCKED_OUT' });
+          return { decision: 'deny' };
+        }
+
+        // Strict Base64 validation and bad key rule
         if (typeof publicKeyB64 !== 'string' || !STRICT_BASE64_REGEX.test(publicKeyB64.trim())) {
+          const alertData = {
+            rule_id: 'RULE_CORRUPTED_KEY',
+            severity: 'HIGH',
+            actor,
+            reason: `Actor ${actor} submitted non-base64 or malformed public key`
+          };
+          tamperLog.appendRecord('detector', 'alert', alertData);
+          process.stderr.write(`[SECURITY ALERT] RULE_CORRUPTED_KEY: ${alertData.reason}\n`);
+          recordDenialForActor(state, actor, stateDir, tamperLog);
+          saveState(stateDir, state);
           return { decision: 'deny' };
         }
 
         const rawPk = Buffer.from(publicKeyB64.trim(), 'base64');
         if (rawPk.length !== 1184) {
+          const alertData = {
+            rule_id: 'RULE_CORRUPTED_KEY',
+            severity: 'HIGH',
+            actor,
+            reason: `Actor ${actor} submitted invalid key length (${rawPk.length} != 1184)`
+          };
+          tamperLog.appendRecord('detector', 'alert', alertData);
+          process.stderr.write(`[SECURITY ALERT] RULE_CORRUPTED_KEY: ${alertData.reason}\n`);
+          recordDenialForActor(state, actor, stateDir, tamperLog);
+          saveState(stateDir, state);
           return { decision: 'deny' };
         }
 
-        const state = loadState(stateDir);
+        // Check device-level revocation if device_id supplied
+        if (request.device_id && state.revoked_devices.has(request.device_id)) {
+          tamperLog.appendRecord(actor, 'protected_read', { asset, device_id: request.device_id, decision: 'deny', reason: 'DEVICE_REVOKED' });
+          return { decision: 'deny' };
+        }
 
         // Authorization check BEFORE any KEM operation
         const isOwner = state.owners.get(asset) === actor;

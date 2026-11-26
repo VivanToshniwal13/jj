@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 const { KeyLifecycleManager } = require('./lib/key_lifecycle.cjs');
+const { TamperEvidentLog } = require('./lib/tamper_log.cjs');
 
 // ML-KEM-768 SPKI DER Prefix (RFC 9629 / NIST FIPS 203)
 const ML_KEM_768_SPKI_PREFIX = Buffer.from('308204b2300b0609608648016503040402038204a100', 'hex');
@@ -214,6 +215,7 @@ exports.dispatch = async function dispatch(request) {
 
   const stateDir = getStateDir();
   const km = new KeyLifecycleManager(stateDir);
+  const tamperLog = new TamperEvidentLog(stateDir);
 
   return await withStateLock(stateDir, async () => {
     switch (op) {
@@ -259,6 +261,7 @@ exports.dispatch = async function dispatch(request) {
         }
 
         saveState(stateDir, state);
+        tamperLog.appendRecord('system', 'setup', { owners_count: state.owners.size });
         return { ready: true };
       }
 
@@ -300,6 +303,8 @@ exports.dispatch = async function dispatch(request) {
           saveState(stateDir, state);
         }
 
+        tamperLog.appendRecord(actor, 'read', { asset, request_id: requestId, decision });
+
         if (decision === 'allow' && bodyContent !== null) {
           return { decision: 'allow', body: bodyContent };
         }
@@ -318,6 +323,7 @@ exports.dispatch = async function dispatch(request) {
         state.revoked.add(actor);
         state.epoch = (state.epoch || 1) + 1;
         saveState(stateDir, state);
+        tamperLog.appendRecord('admin', 'revoke', { target_actor: actor });
         return {};
       }
 
@@ -373,15 +379,18 @@ exports.dispatch = async function dispatch(request) {
               saveState(stateDir, state);
             }
           }
+          tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'deny' });
           return { decision: 'deny' };
         }
 
         const keyVer = record.key_version || 1;
         if (!km.canUseForDecryption(keyVer)) {
+          tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'deny' });
           return { decision: 'deny' };
         }
         const kekObj = km.getKeyByVersion(keyVer);
         if (!kekObj) {
+          tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'deny' });
           return { decision: 'deny' };
         }
         const kek = Buffer.from(kekObj.keyHex, 'hex');
@@ -412,6 +421,8 @@ exports.dispatch = async function dispatch(request) {
             saveState(stateDir, state);
           }
         }
+
+        tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'allow' });
 
         return {
           decision: 'allow',

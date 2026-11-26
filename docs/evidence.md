@@ -15,7 +15,7 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
 | **2. Revocation across nodes** | `DistributedRevocationAuthority` ML-DSA-65 broadcast across 5 simulated nodes with network partition & staleness fail-closed check. | All active nodes enforce revocation. Partitioned nodes fail closed after `maxStalenessMs` (default 5000ms). | `measured` - Verified in `tests/distributed_partition.test.cjs`. 5-node broadcast: 16 ms initial, 20 ms total with catch-up (single-host simulation). Replay of old lists rejected by monotonic versioning. |
 | **3. Crash recovery** | Write-Ahead Journal (WAL) for key rotation; atomic `fsync` & rename for store state; fault injection kills process mid-setup and mid-revoke. | Uncommitted pending keys wiped; active keys preserved; lock released; no corrupted half-written files. | `measured` - Verified in `tests/crash_recovery_adapter.test.cjs` & `tests/phase2.test.cjs`. Zero state corruption across `SIGKILL` fault hooks. |
 | **4. Backup integrity** | Scrypt KDF (`N=32768, r=8, p=1`), AES-256-GCM encryption, ML-DSA-65 digital signature over ciphertext + metadata only. Monotonic rollback protection. | Detects bit flips, truncation, wrong password. Restoring older backup preserves existing revocations and advances epoch. | `measured` - Verified in `tests/rollback_protection.test.cjs` & `tests/phase2.test.cjs`. Maya remains revoked after restoring pre-revocation backup. |
-| **5. Log integrity** | Tamper-evident hash chain (SHA-256 canonical lines) with periodic ML-DSA-65 signed checkpoints. | Verification pinpoints exact edited, injected, reordered, or truncated record. | `in_progress` (Phase 3) |
+| **5. Log integrity** | Tamper-evident hash chain (SHA-256 canonical lines) with periodic ML-DSA-65 signed checkpoints. Verification via `bin/verify_log.cjs`. | Verification pinpoints exact edited, injected, reordered, or truncated record index and type. Reject newlines/CRLF injection. | `measured` - Verified in `tests/phase3_log.test.cjs`. Recomputed canonical hashes detect 100% of bit flips, swaps, truncations, and forged signatures. |
 | **6. Routine and suspicious activity** | Graph and rule-based anomaly detector for privilege escalation, rapid traversal, and anomalous access. | Flags unapproved privilege spikes and suspicious off-hour lateral moves without ML. | `pending` (Phase 4) |
 | **7. Lateral movement** | Correlate `events.csv` sessions, edge transitions, and unauthorized service jumps. | Chains suspicious event sequences from initial read to sensitive service hop. | `pending` (Phase 4) |
 | **8. Clock differences** | NTP / logical clock offset handling with stated clock uncertainty bounds. | Corrected timelines without overwriting raw timestamps. | `pending` (Phase 4) |
@@ -51,6 +51,17 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
 - **Observed Results:**
   - `tests/rollback_protection.test.cjs`: State initialized with Maya and Alice at Epoch 1. Signed backup created. Maya revoked (Epoch 2). Older Epoch 1 backup restored. Maya read request returned `decision: deny`. System epoch advanced to 3.
   - Plaintext manifest removed; ML-DSA-65 signature covers only ciphertext, IV, salt, tag, epoch, and creation timestamp.
+
+### Measurement 4: Tamper-Evident Hash-Chained Audit Log (Goal 5)
+- **Claim:** Single-line canonical JSON append-only log with SHA-256 hash chaining and periodic ML-DSA-65 checkpoints reliably pinpoints any modification, reordering, truncation, or CRLF injection.
+- **Setup & Workload:** Evaluated in `tests/phase3_log.test.cjs` with malicious inputs (`\r\n`, Unicode separators `\u2028`, JSON injection strings) and simulated attacks (bit flips, record swaps, tail truncation, signature forgery). Verified end-to-end via `bin/verify_log.cjs`.
+- **Observed Results:**
+  - Injection immunity: CRLF and Unicode separators remain escaped inside standard JSON string literals. Single-line invariant preserved 100%.
+  - Modification detection: Bit flip in record 2 detected as `TAMPER_MODIFICATION` with exact line number and record index.
+  - Reordering detection: Swapping records 1 and 2 detected as `TAMPER_REORDER_OR_BROKEN_CHAIN`.
+  - Truncation detection: Missing records covered by a signed checkpoint detected as `TAMPER_TRUNCATION`.
+  - Checkpoint forgery detection: Bit flip in checkpoint signature detected as `TAMPER_CHECKPOINT_FORGED`.
+  - Adapter integration: `track4_service.cjs` writes real audit events (`setup`, `read`, `revoke`, `protected_read`); `bin/verify_log.cjs` verifies with code 0.
 
 ---
 

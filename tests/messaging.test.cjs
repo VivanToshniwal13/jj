@@ -10,7 +10,14 @@ const { ProtectedMessagingEngine } = require('../lib/messaging.cjs');
 
 test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Resumption', async (t) => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-msg-test-'));
+  const origEnvStateDir = process.env.TRACK4_STATE_DIR;
+  process.env.TRACK4_STATE_DIR = stateDir;
   t.after(() => {
+    if (origEnvStateDir !== undefined) {
+      process.env.TRACK4_STATE_DIR = origEnvStateDir;
+    } else {
+      delete process.env.TRACK4_STATE_DIR;
+    }
     try { fs.rmSync(stateDir, { recursive: true, force: true }); } catch {}
   });
 
@@ -19,7 +26,7 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
   const bob = ProtectedMessagingEngine.generateIdentityKeyPair();
   const charlie = ProtectedMessagingEngine.generateIdentityKeyPair();
 
-  const engine = new ProtectedMessagingEngine();
+  const engine = new ProtectedMessagingEngine(stateDir);
 
   // 1. Goal 9: Full Post-Quantum Message Protection with Ephemeral KEM Prekey
   await t.test('1. Goal 9: Ephemeral ML-KEM-768, HKDF-SHA256, AES-256-GCM and ML-DSA-65 authenticated message delivery', () => {
@@ -266,5 +273,152 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
     const checkExpired = ProtectedMessagingEngine.verifyResumptionTicket(expiredTicket, 'bob', bobKeyB64, ticketKey);
     assert.equal(checkExpired.valid, false);
     assert.equal(checkExpired.reason, 'TICKET_EXPIRED');
+  });
+
+  // 7. Goal 9: Replay State Persistence Across Restart
+  await t.test('7. Goal 9: Replay state persists across restart (simulated restart rejects replayed message)', () => {
+    const restartStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-restart-test-'));
+    try {
+      const bobSessionPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+      const receiver1 = new ProtectedMessagingEngine(restartStateDir);
+
+      const packet = receiver1.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Message before restart',
+        { messageId: 'msg-restart-101', sequenceNumber: 10 }
+      );
+
+      const res = receiver1.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet);
+      assert.equal(res.verified, true);
+
+      // Verify replay_state.json exists and has 0600 permissions
+      const stateFile = path.join(restartStateDir, 'replay_state.json');
+      assert.ok(fs.existsSync(stateFile));
+      assert.equal(fs.statSync(stateFile).mode & 0o777, 0o600);
+
+      // Simulate restart by creating a brand NEW receiver instance on the same stateDir
+      const receiver2 = new ProtectedMessagingEngine(restartStateDir);
+
+      // Attempt replay on the new instance: must be rejected with MESSAGE_REPLAY_DETECTED
+      assert.throws(() => {
+        receiver2.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet);
+      }, /MESSAGE_REPLAY_DETECTED/);
+    } finally {
+      fs.rmSync(restartStateDir, { recursive: true, force: true });
+    }
+  });
+
+  // 8. Goal 9: Per-Sender Sliding Window (1,024 entries)
+  await t.test('8. Goal 9: Per-sender sliding window allows out-of-order within 1024 window, rejects older sequences', () => {
+    const windowStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-window-test-'));
+    try {
+      const windowEngine = new ProtectedMessagingEngine(windowStateDir);
+      const bobSessionPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+
+      // 1. Send seq 5 first
+      const packet5 = windowEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Packet seq 5',
+        { messageId: 'msg-seq-5', sequenceNumber: 5 }
+      );
+      const rec5 = windowEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet5);
+      assert.equal(rec5.sequence_number, 5);
+
+      // 2. Out-of-order inside the window (seq 3 after seq 5): accepted
+      const packet3 = windowEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Packet seq 3',
+        { messageId: 'msg-seq-3', sequenceNumber: 3 }
+      );
+      const rec3 = windowEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet3);
+      assert.equal(rec3.sequence_number, 3);
+
+      // 3. Advance the window: send seq 1050 (highest becomes 1050; window cutoff is 1050 - 1024 = 26)
+      const packet1050 = windowEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Packet seq 1050',
+        { messageId: 'msg-seq-1050', sequenceNumber: 1050 }
+      );
+      const rec1050 = windowEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet1050);
+      assert.equal(rec1050.sequence_number, 1050);
+
+      // 4. Sequence older than the window: seq 20 (<= 1050 - 1024 = 26): rejected
+      const packetOld = windowEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Old packet seq 20',
+        { messageId: 'msg-seq-20', sequenceNumber: 20 }
+      );
+      assert.throws(() => {
+        windowEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packetOld);
+      }, /MESSAGE_REPLAY_DETECTED/);
+
+      // Also sequence exactly at cutoff (highest - 1024 = 26): rejected
+      const packetCutoff = windowEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Cutoff packet seq 26',
+        { messageId: 'msg-seq-26', sequenceNumber: 26 }
+      );
+      assert.throws(() => {
+        windowEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packetCutoff);
+      }, /MESSAGE_REPLAY_DETECTED/);
+    } finally {
+      fs.rmSync(windowStateDir, { recursive: true, force: true });
+    }
+  });
+
+  // 9. Goal 9: Corrupt State Fail-Closed
+  await t.test('9. Goal 9: Corrupt replay_state.json fails closed with REPLAY_STATE_UNAVAILABLE and never resets', () => {
+    const corruptStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-corrupt-test-'));
+    try {
+      const stateFile = path.join(corruptStateDir, 'replay_state.json');
+      fs.writeFileSync(stateFile, '{ corrupt-json-content: true, invalid syntax', { mode: 0o600 });
+
+      const corruptEngine = new ProtectedMessagingEngine(corruptStateDir);
+      const bobSessionPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+
+      const packet = corruptEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Test corrupt state'
+      );
+
+      // Receive fails closed
+      assert.throws(() => {
+        corruptEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet);
+      }, /REPLAY_STATE_UNAVAILABLE/);
+
+      // Confirm the corrupt file was NOT silently overwritten or reset
+      const content = fs.readFileSync(stateFile, 'utf8');
+      assert.ok(content.startsWith('{ corrupt-json-content'));
+    } finally {
+      fs.rmSync(corruptStateDir, { recursive: true, force: true });
+    }
   });
 });

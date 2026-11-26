@@ -569,16 +569,17 @@ class DashboardSimulationEngine {
 
     const alice = ProtectedMessagingEngine.generateIdentityKeyPair();
     const bob = ProtectedMessagingEngine.generateIdentityKeyPair();
+    const bobPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
     const pme = new ProtectedMessagingEngine();
 
     const secretMsg = "Clinical dispatch: Heart rate stabilized at 72 bpm, surgical clearance granted.";
-    const packet = pme.sendMessage('alice', alice.dsa.privateKey, 'bob', bob.kem.publicKeyB64, secretMsg);
+    const packet = pme.sendMessage('alice', alice.dsa.privateKey, 'bob', bob.dsa.publicKey, bobPrekey, secretMsg);
 
-    const received = pme.receiveMessage('bob', bob.kem.privateKey, alice.dsa.publicKey, packet);
+    const received = pme.receiveMessage('bob', bobPrekey, alice.dsa.publicKey, packet);
 
     let replayCaught = false;
     try {
-      pme.receiveMessage('bob', bob.kem.privateKey, alice.dsa.publicKey, packet);
+      pme.receiveMessage('bob', bobPrekey, alice.dsa.publicKey, packet);
     } catch (err) {
       replayCaught = true;
     }
@@ -587,9 +588,9 @@ class DashboardSimulationEngine {
       sender: "alice",
       recipient: "bob",
       message_id: packet.message_id,
-      algorithm: "ML-KEM-768 + HKDF-SHA256 + AES-256-GCM + ML-DSA-65",
+      algorithm: "Ephemeral ML-KEM-768 + HKDF-SHA256 + AES-256-GCM + ML-DSA-65",
       plaintext: received.plaintext,
-      forward_secrecy: "Ephemeral secret key wiped immediately",
+      forward_secrecy: "Per-session signed ephemeral prekey; private key wiped after session",
       replay_rejection: replayCaught ? "REPLAY STRICTLY REJECTED" : "Failed"
     };
 

@@ -77,12 +77,14 @@ Prototype Guard ]   Envelope Engine ]       Encapsulation ]
   * *Honest Threat Model Limitation*: At-rest encryption protects against partial disclosure (stolen backup exports, leaked ciphertext records, or processes without read permission to `kek.bin`). An adversary with full container read access to the state directory can read both the KEK and ciphertext. Sensitive `key_material` from setup is never stored in plaintext.
 * **Identity Assertion vs. Caller Authentication**:
   * Identity (`actor`) is asserted by the trusted caller (the worker harness) in the request payload; there is no cryptographic caller authentication in the process-per-request CLI adapter model. The adapter strictly enforces authorization policies (asset ownership, revocation lists, and disabled status) against the asserted identity.
-* **Device Enrolment & Re-enrolment (Goal 2)**:
-  * Devices are authorized using NIST FIPS 204 ML-DSA-65 signatures. Lost devices are revoked across all nodes; users re-enrol new devices via signed records without impacting peers.
+* **Device Enrolment & Boundary**:
+  * Device-signed access is library-level (`lib/distributed_revocation.cjs`), not enforced by the adapter. Devices are authorized using NIST FIPS 204 ML-DSA-65 signatures. Lost devices are revoked across all nodes; users re-enrol new devices via signed records without impacting peers.
 * **Key Rotation with 5-Node Cutoff (Goal 1)**:
   * Key rotation enforces a documented grace period and cutoff. In-flight requests initiated before cutoff complete, while requests after cutoff are rejected across all 5 nodes with `KEY_VERSION_CUTOFF_EXPIRED`.
 * **Post-Quantum Protected Messaging (Goals 9, 10, 11, 12)**:
-  * Ephemeral ML-KEM-768 encapsulation, HKDF-SHA256 derivation, AES-256-GCM encryption with complete AAD recipient binding, ML-DSA-65 signatures, nonce replay cache, forward secrecy via ephemeral secret erasure, sequenced chunking, and session resumption tickets.
+  * Ephemeral per-session ML-KEM-768 prekeys signed by ML-DSA-65 identity keys, HKDF-SHA256 derivation, AES-256-GCM encryption with complete AAD recipient binding, ML-DSA-65 signatures, replay cache keying on `(sender, message_id, sequence)`, forward secrecy via ephemeral private key erasure, sequenced chunking with SHA-256 checksums, and resumption tickets loaded from `$TRACK4_STATE_DIR/ticket_key.bin` (mode 0600) binding peer identity.
+* **Safe Alert-Only Default (Assessment Response)**:
+  * To prevent denial-of-service through asserted caller identities, anomaly detection defaults to alert-only logging to `audit.log` and `stderr`. Automated 30s lockout is strictly opt-in via `TRACK4_LIVE_LOCKOUT=1`. An actor with 5 denied reads reading their own asset continues to receive `allow`.
 * **Audit Log Anchoring & Limitations**:
   * The audit log is stored as append-only canonical JSON Lines with SHA-256 hash chaining and periodic ML-DSA-65 signed checkpoints.
   * *Honest Anchor Limitation*: If the authority private key sits in `$TRACK4_STATE_DIR`, an attacker with host filesystem write access can rewrite the log and re-sign checkpoints. To achieve immutable guarantees, signed heads can be exported externally via `bin/verify_log.cjs --export-head <path>` and verified with `--trusted-head`. Records appended *after* the latest checkpoint can be truncated without breaking the prior checkpoint.

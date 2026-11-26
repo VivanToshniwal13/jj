@@ -200,7 +200,9 @@ function checkLiveRulesAndRespond(state, actor, asset, op, request, stateDir, ta
         actor,
         reason: `Actor ${actor} enumerated ${distinct.size} non-existent assets within 60s`
       });
-      state.lockouts.set(actor, now + 30000); // 30s automated lockout response
+      if (process.env.TRACK4_LIVE_LOCKOUT === '1') {
+        state.lockouts.set(actor, now + 30000); // 30s automated lockout response
+      }
     }
   }
 
@@ -226,8 +228,11 @@ function recordDenialForActor(state, actor, stateDir, tamperLog) {
       reason: `Actor ${actor} accumulated ${list.length} consecutive denials within 60s`
     };
     tamperLog.appendRecord('detector', 'alert', alertData);
-    process.stderr.write(`[SECURITY ALERT] RULE_REPEATED_DENIALS: Actor ${actor} locked out for 30s\n`);
-    state.lockouts.set(actor, now + 30000); // 30s automated lockout response
+    const isLockoutEnabled = process.env.TRACK4_LIVE_LOCKOUT === '1';
+    process.stderr.write(`[SECURITY ALERT] RULE_REPEATED_DENIALS: Actor ${actor} accumulated ${list.length} consecutive denials${isLockoutEnabled ? ' (locked out for 30s)' : ' (alert only)'}\n`);
+    if (isLockoutEnabled) {
+      state.lockouts.set(actor, now + 30000); // 30s automated lockout response
+    }
   }
 }
 
@@ -363,16 +368,18 @@ exports.dispatch = async function dispatch(request) {
         // Live detection pre-check
         checkLiveRulesAndRespond(state, actor, asset, 'read', request, stateDir, tamperLog);
 
-        // Check automated lockout response
-        const lockoutUntil = state.lockouts.get(actor);
-        if (lockoutUntil && Date.now() < lockoutUntil) {
-          tamperLog.appendRecord(actor, 'read', { asset, request_id: requestId, decision: 'deny', reason: 'ACTOR_LOCKED_OUT' });
-          if (!auditIndex.has(requestId)) {
-            auditIndex.record(requestId, 'deny');
-            state.audit_events.set(requestId, { request_id: requestId, decision: 'deny' });
-            saveState(stateDir, state);
+        // Check automated lockout response (only enforced when TRACK4_LIVE_LOCKOUT=1)
+        if (process.env.TRACK4_LIVE_LOCKOUT === '1') {
+          const lockoutUntil = state.lockouts.get(actor);
+          if (lockoutUntil && Date.now() < lockoutUntil) {
+            tamperLog.appendRecord(actor, 'read', { asset, request_id: requestId, decision: 'deny', reason: 'ACTOR_LOCKED_OUT' });
+            if (!auditIndex.has(requestId)) {
+              auditIndex.record(requestId, 'deny');
+              state.audit_events.set(requestId, { request_id: requestId, decision: 'deny' });
+              saveState(stateDir, state);
+            }
+            return { decision: 'deny' };
           }
-          return { decision: 'deny' };
         }
 
         // Check device-level revocation if device_id supplied
@@ -505,11 +512,13 @@ exports.dispatch = async function dispatch(request) {
         // Live detection check
         checkLiveRulesAndRespond(state, actor, asset, 'protected_read', request, stateDir, tamperLog);
 
-        // Check automated lockout response
-        const lockoutUntil = state.lockouts.get(actor);
-        if (lockoutUntil && Date.now() < lockoutUntil) {
-          tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'deny', reason: 'ACTOR_LOCKED_OUT' });
-          return { decision: 'deny' };
+        // Check automated lockout response (only enforced when TRACK4_LIVE_LOCKOUT=1)
+        if (process.env.TRACK4_LIVE_LOCKOUT === '1') {
+          const lockoutUntil = state.lockouts.get(actor);
+          if (lockoutUntil && Date.now() < lockoutUntil) {
+            tamperLog.appendRecord(actor, 'protected_read', { asset, decision: 'deny', reason: 'ACTOR_LOCKED_OUT' });
+            return { decision: 'deny' };
+          }
         }
 
         // Strict Base64 validation and bad key rule

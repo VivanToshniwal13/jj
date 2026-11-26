@@ -152,9 +152,9 @@ test('Goal 2: Device Loss, Revocation, Re-enrolment and Peer Isolation', async (
     fs.rmSync(tmpNodes, { recursive: true, force: true });
   });
 
-  // 6. Live Detection & Automated Response
-  await t.test('6. Live detection rules and automated lockout on audit log', async () => {
-    // A. Malformed request triggers RULE_MALFORMED_INJECTION
+  // 6. Live Detection & Safe Alert-Only Default (Lockout Risk Mitigation)
+  await t.test('6. Live detection rules: alert-only by default, actor with 5 denials reading own asset gets allow', async () => {
+    // A. Malformed request triggers RULE_MALFORMED_INJECTION alert
     await dispatch({
       op: 'read',
       actor: 'attacker_script',
@@ -162,29 +162,57 @@ test('Goal 2: Device Loss, Revocation, Re-enrolment and Peer Isolation', async (
       request_id: 'r-inject-1'
     }).catch(() => {});
 
-    // B. Repeated denials trigger RULE_REPEATED_DENIALS and 30s lockout
-    const attacker = 'persistent_brute';
-    for (let i = 0; i < 3; i++) {
+    // Ensure TRACK4_LIVE_LOCKOUT is unset (default alert-only mode)
+    delete process.env.TRACK4_LIVE_LOCKOUT;
+
+    // B. Maya attempts 5 unauthorized reads on asset2 (owned by alex)
+    for (let i = 1; i <= 5; i++) {
+      const res = await dispatch({
+        op: 'read',
+        actor: 'maya',
+        asset: 'asset2', // not maya's asset
+        request_id: `r-deny-maya-${i}`
+      });
+      assert.equal(res.decision, 'deny');
+    }
+
+    // C. Maya now reads her OWN asset (asset1) -> MUST BE ALLOWED (Alert-only default prevents caller assertion DOS)
+    const ownRead = await dispatch({
+      op: 'read',
+      actor: 'maya',
+      asset: 'asset1',
+      request_id: 'r-maya-own-after-5-denials'
+    });
+    assert.equal(ownRead.decision, 'allow', 'Actor with 5 denied reads must still get allow when reading own asset');
+    assert.equal(ownRead.body, 'maya secret file');
+
+    // D. Opt-in lockout: when TRACK4_LIVE_LOCKOUT=1, repeated denials trigger 30s lockout
+    process.env.TRACK4_LIVE_LOCKOUT = '1';
+    const bruteActor = 'persistent_brute';
+    for (let i = 1; i <= 3; i++) {
       await dispatch({
         op: 'read',
-        actor: attacker,
+        actor: bruteActor,
         asset: 'asset1', // not owner
-        request_id: `r-deny-${i}`
+        request_id: `r-brute-deny-${i}`
       });
     }
 
-    // Subsequent request is denied due to ACTOR_LOCKED_OUT
+    // Subsequent read is denied due to lockout
     const lockedRes = await dispatch({
       op: 'read',
-      actor: attacker,
+      actor: bruteActor,
       asset: 'asset1',
-      request_id: 'r-after-lockout'
+      request_id: 'r-brute-locked'
     });
     assert.equal(lockedRes.decision, 'deny');
 
-    // C. Verify alerts exist in audit log
+    // Clean up env flag
+    delete process.env.TRACK4_LIVE_LOCKOUT;
+
+    // E. Verify alerts were recorded in audit log
     const log = new TamperEvidentLog(stateDir);
     const logContent = fs.readFileSync(log.logPath, 'utf8');
-    assert.ok(logContent.includes('RULE_REPEATED_DENIALS') || logContent.includes('ACTOR_LOCKED_OUT'));
+    assert.ok(logContent.includes('RULE_REPEATED_DENIALS'));
   });
 });

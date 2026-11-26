@@ -12,17 +12,18 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
 | Goal | Public demonstration and evidence to collect | Expected behavior you define before run | Actual result / status / evidence link |
 | :--- | :--- | :--- | :--- |
 | **1. Key rotation** | Use `bin/track4_admin.cjs rotate` or `KeyLifecycleManager`. Version IDs, activation times, normal read before & after. 5-node cluster cutoff enforcement. | Monotonic version transitions: Active -> Retiring -> Retired -> Revoked. After documented cutoff, all nodes reject retiring key; in-flight requests before cutoff complete. | `measured` - Verified in `tests/phase2.test.cjs` & `tests/re_enrolment.test.cjs`. Version 1 transitions to retiring. In 5-node cluster, requests after cutoff rejected across all 5 nodes with `KEY_VERSION_CUTOFF_EXPIRED`, while in-flight before cutoff succeed. |
-| **2. Revocation across nodes & device loss** | `DistributedRevocationAuthority` ML-DSA-65 broadcast across 5 simulated nodes with network partition & staleness fail-closed check. Device loss & re-enrolment workflow. | All active nodes enforce revocation. Partitioned nodes fail closed after `maxStalenessMs`. Lost device revoked across all nodes; user re-enrols new signed device and regains access; peer users unaffected. | `measured` - Verified in `tests/distributed_partition.test.cjs` & `tests/re_enrolment.test.cjs`. 5-node broadcast: 16 ms initial, 20 ms total. Maya's lost device revoked; Maya enrols `device-maya-phone2` via signed ML-DSA record and recovers file access; Alex remains completely unaffected. |
+| **2. Revocation across nodes** | `DistributedRevocationAuthority` ML-DSA-65 broadcast across 5 simulated nodes with network partition & staleness fail-closed check. Device loss & re-enrolment workflow. | All active nodes enforce revocation. Partitioned nodes fail closed after `maxStalenessMs`. Lost device revoked across all nodes; user re-enrols new signed device and regains access; peer users unaffected. | `measured` - Verified in `tests/distributed_partition.test.cjs` & `tests/re_enrolment.test.cjs`. 5-node broadcast: 16 ms initial, 20 ms total. Maya's lost device revoked; Maya enrols `device-maya-phone2` via signed ML-DSA record and recovers file access; Alex remains completely unaffected. |
 | **3. Crash recovery** | Write-Ahead Journal (WAL) for key rotation; atomic `fsync` & rename for store state; fault injection kills process mid-setup and mid-revoke. | Uncommitted pending keys wiped; active keys preserved; lock released; no corrupted half-written files. | `measured` - Verified in `tests/crash_recovery_adapter.test.cjs` & `tests/phase2.test.cjs`. Zero state corruption across `SIGKILL` fault hooks. |
 | **4. Backup integrity** | Scrypt KDF (`N=32768, r=8, p=1`), AES-256-GCM encryption, ML-DSA-65 digital signature over ciphertext + metadata only. Monotonic rollback protection. | Detects bit flips, truncation, wrong password. Restoring older backup preserves existing revocations and advances epoch. | `measured` - Verified in `tests/rollback_protection.test.cjs` & `tests/phase2.test.cjs`. Maya remains revoked after restoring pre-revocation backup. |
 | **5. Log integrity** | Tamper-evident hash chain (SHA-256 canonical lines) with periodic ML-DSA-65 signed checkpoints. Verification via `bin/verify_log.cjs`. | Verification pinpoints exact edited, injected, reordered, or truncated record index and type. Reject newlines/CRLF injection. | `measured` - Verified in `tests/phase3_log.test.cjs`. Recomputed canonical hashes detect 100% of bit flips, swaps, truncations, and forged signatures. |
 | **6. Routine and suspicious activity** | Rule & graph-based detector (`lib/detector.cjs`, `bin/detect.cjs`) evaluated against practice dataset & 1,000 synthetic benign events. | Flag unapproved role changes, post-escalation reads, and distinguish routine operations without ML. | `measured` - Verified via `scripts/evaluate_detector.cjs` (22/22, functional check, not accuracy) & `scripts/evaluate_attack_set.cjs` (44/44, 100% recall); 0 false alerts / 1,000 benign events (`scripts/generate_benign_workload.cjs`). |
-| **7. Lateral movement & live response** | Graph edge correlation across session & flow IDs (`flow-005` in `events.csv`, 2-to-5 hop campaigns). Live detection during operation over `audit.log` with temporary lockout. | Chain multi-hop unexpected service traversals across distinct targets; isolate single denials. Live detector flags repeated denials ($\ge 3$), asset enumeration, and post-revocation access, applying 30s lockout and stderr alert. | `measured` - Verified in `tests/detector_isolation.test.cjs` & `tests/re_enrolment.test.cjs`. Standalone inspector CLI `bin/alerts.cjs` detects attacks. Live lockout stops repeated denial brute-force while passing adapter contract (`stdout` remains single valid JSON). |
+| **7. Lateral movement** | Graph edge correlation across session & flow IDs (`flow-005` in `events.csv`, 2-to-5 hop campaigns in synthetic attack set). | Chain multi-hop unexpected service traversals (`reports -> billing -> archive -> identity`) across distinct targets; isolate single denials (`evt-020`). | `measured` - Verified in `tests/detector_isolation.test.cjs` & `scripts/evaluate_attack_set.cjs`. Detects 2-hop, 3-hop, 4-hop, and 5-hop traversals with zero false alerts on isolated denials. |
 | **8. Clock differences** | Logical & collector timeline alignment for skewed/out-of-order events (`evt-013..015` and attack set). | Preserve raw timestamps while calculating `estimated_event_time_utc`. Flag ordering as uncertain within ±500ms window; alert on excessive skew (>±5000ms). | `measured` - Verified in `tests/detector_isolation.test.cjs`. Corrects +2000ms offset on `evt-015`; flags `evt-013` delayed arrival; flags +8500ms and -7000ms excessive skew in attack set. |
-| **9. Replay and recipient binding** | Ephemeral ML-KEM-768 ciphertext + recipient identity binding in authenticated additional data (AAD). Replay cache tracking message nonces. | Duplicate message rejection and wrong-recipient decryption failure; tampered AAD triggers authentication error. | `measured` - Verified in `tests/messaging.test.cjs`. Replay attempt rejected with `REPLAY_ATTACK_DETECTED`; decrypting with wrong recipient key or modified AAD fails AES-256-GCM authentication. |
-| **10. Forward secrecy** | Ephemeral ML-KEM-768 key encapsulation per message exchange; zeroization of ephemeral private keys. | Compromise of recipient's long-term identity key cannot decrypt captured historical ephemeral ciphertexts. | `measured` - Verified in `tests/messaging.test.cjs`. Recipient long-term key compromise fails to decrypt prior messages because ephemeral private key was destroyed immediately upon decapsulation. |
-| **11. Delivery under loss or reordering** | Sequenced message chunking (`chunkMessage` / `reassembleChunks`) with SHA-256 segment validation and missing-segment detection. | Guaranteed reassembly despite synthetic reordering; missing chunks cleanly rejected without partial leakage. | `measured` - Verified in `tests/messaging.test.cjs`. Reassembly succeeds when chunks arrive reversed (chunk 2, 1, 0); dropping chunk 1 triggers `CHUNK_STREAM_INCOMPLETE`. |
-| **12. Session resumption** | HMAC-SHA256 authenticated resumption tickets with bounded lifetime (60s) and fresh policy re-evaluation upon reconnect. | Fast reconnection without full key handshake; revoked or disabled actors rejected upon ticket presentation. | `measured` - Verified in `tests/messaging.test.cjs`. Valid tickets resume session instantly; expired tickets (>60s) or tickets presented after actor revocation are strictly denied. |
+| **9. Replay and recipient binding** | Sender ML-DSA-65 signature over header & ciphertext verified BEFORE decryption. Replay cache keying on `(sender, message_id, sequence)`. Full recipient ID in AAD. | Duplicate `(sender, message_id, sequence)` rejected (`MESSAGE_REPLAY_DETECTED`). Recipient mismatch rejected (`WRONG_RECIPIENT_ERROR`). Tampered AAD rejected. Wrong recipient key fails. | `measured` - Verified in `tests/messaging.test.cjs`. Replay rejected with `MESSAGE_REPLAY_DETECTED`; recipient mismatch rejected; tampered AAD rejected; wrong recipient prekey fails decapsulation. |
+| **10. Forward secrecy** | Per-session ephemeral ML-KEM-768 prekey generated by recipient, signed by recipient ML-DSA-65 identity key. Ephemeral private key deleted after session. | Compromise of recipient long-term ML-DSA-65 identity key post-session cannot decrypt past recorded ciphertexts. | `measured` - Verified in `tests/messaging.test.cjs`. Session completes, ephemeral private key destroyed, long-term identity key exposed; past ciphertext decryption strictly fails with `EPHEMERAL_KEY_DESTROYED`. |
+| **11. Delivery under loss or reordering** | Sequenced message chunking (`chunkMessage` / `reassembleChunks`) with SHA-256 chunk checksums and missing-segment detection. | Chunks delivered out of order are reassembled correctly; a missing chunk is discarded and reported; a tampered chunk is rejected. | `measured` - Verified in `tests/messaging.test.cjs`. Reversed chunk sequence reassembles cleanly; dropping chunk 1 triggers `INCOMPLETE_MESSAGE_CHUNKS`; tampering with chunk payload triggers `CHUNK_CHECKSUM_FAILED`. |
+| **12. Session resumption** | HMAC-SHA256 authenticated resumption tickets loaded from random per-run key in `$TRACK4_STATE_DIR/ticket_key.bin` (0600 mode). Ticket binds peer ID and peer identity public key. | Safe reconnect without full handshake. Ticket binds peer identity key. Different peer presenting ticket rejected (`TICKET_PEER_MISMATCH`); wrong identity key rejected (`TICKET_IDENTITY_KEY_MISMATCH`); expired ticket rejected (`TICKET_EXPIRED`). | `measured` - Verified in `tests/messaging.test.cjs`. Ticket key stored in stateDir; verified valid presentation; different peer or different key rejected. |
+| **Assessment response (Live detection & response)** | Inline inspection of `audit.log` detecting repeated denials ($\ge 3$), asset enumeration, and post-revocation requests. | Emits structured alerts to audit log and stderr. Safe alert-only default prevents caller assertion DOS. Lockout response strictly opt-in via `TRACK4_LIVE_LOCKOUT=1`. | `measured` - Verified in `tests/re_enrolment.test.cjs` & `bin/alerts.cjs`. 5 denied reads by actor followed by reading own asset succeeds (decision: allow); opt-in lockout verified with env flag. |
 
 ---
 
@@ -112,28 +113,33 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
   - Re-enrolment: Maya phone2 allowed immediately upon broadcast.
   - 5-Node key cutoff: 5/5 nodes reject v1 requests after cutoff; 5/5 nodes accept in-flight requests before cutoff.
 
-### Measurement 8: Live Anomaly Detection & Lockout Response (Goal 7)
-- **Claim:** Running detector rules inline over `audit.log` alerts on repeated unauthorized accesses ($\ge 3$), asset enumeration, post-revocation requests, and malformed inputs, enforcing a safe temporary lockout without breaking the single-JSON adapter contract.
-- **Setup & Workload:** Evaluated in `tests/re_enrolment.test.cjs` and `bin/alerts.cjs`. 3 consecutive denied reads by actor `eve` trigger an automatic 30-second lockout. Subsequent attempts fail immediately with `ACTOR_LOCKED_OUT`.
+### Measurement 8: Live Anomaly Detection & Safe Alert-Only Default (Assessment Response)
+- **Claim:** Running detector rules inline over `audit.log` alerts on repeated unauthorized accesses ($\ge 3$), asset enumeration, post-revocation requests, and malformed inputs. To prevent caller identity assertion denial-of-service, the system defaults to alert-only logging (to `audit.log` and `stderr`) and never changes decisions for valid non-revoked actors. Automated lockout is strictly opt-in via `TRACK4_LIVE_LOCKOUT=1`.
+- **Setup & Workload:** Evaluated in `tests/re_enrolment.test.cjs` and `bin/alerts.cjs`:
+  1. Actor Maya performs 5 consecutive denied reads on assets she does not own.
+  2. Maya then reads her own asset: returns `allow` with exact content (default alert-only verified).
+  3. With `TRACK4_LIVE_LOCKOUT=1`, 3 consecutive denials lock out the actor for 30 seconds.
 - **Observed Results:**
-  - Alert output: Warning written to `stderr` (`[SECURITY ALERT] ...`) and committed to hash-chained `audit.log`.
-  - Adapter contract: `stdout` contains strictly one valid JSON object (`{"decision":"deny", ...}`).
+  - Safe default: 5 denied reads followed by owner read returns `decision: allow`.
+  - Alert output: Structured alert written to `stderr` (`[SECURITY ALERT] ...`) and committed to hash-chained `audit.log`.
+  - Adapter contract: `stdout` contains strictly one valid JSON object (`{"decision":"allow", ...}`).
 
 ### Measurement 9: Post-Quantum Protected Messaging (Goals 9, 10, 11, 12)
-- **Claim:** Ephemeral NIST FIPS 203 ML-KEM-768 encapsulation, HKDF-SHA256 derivation, and AES-256-GCM authenticated encryption with full AAD recipient binding achieve forward secrecy, replay prevention, and ordered stream reconstruction.
+- **Claim:** Ephemeral per-session NIST FIPS 203 ML-KEM-768 prekeys signed by ML-DSA-65 identity keys, HKDF-SHA256 derivation, AES-256-GCM encryption with complete AAD recipient binding, and replay defense keying on `(sender, message_id, sequence)` achieve forward secrecy, replay prevention, and ordered stream reconstruction.
 - **Setup & Workload:** Evaluated in `tests/messaging.test.cjs`:
-  1. Ephemeral ML-KEM-768 key encapsulation per message exchange.
-  2. Replay cache tests against duplicate nonces.
-  3. Decryption under wrong recipient key or modified AAD header.
-  4. Forward secrecy test: Bob's static long-term private key exposed to adversary; adversary attempts to decrypt past captured session ciphertext.
-  5. Chunking test: 3-chunk payload delivered in reverse order (2, 1, 0), and payload delivered with missing chunk.
-  6. Resumption test: Session ticket issued with 60s validity; reconnection tested before expiry, after expiry, and after sender revocation.
+  1. Recipient generates fresh ephemeral ML-KEM-768 keypair signed by long-term ML-DSA-65 identity key.
+  2. Sender verifies signature and encapsulates shared secret to ephemeral prekey.
+  3. Replay cache test: duplicate `(sender, message_id, sequence)` transmission is rejected.
+  4. Recipient binding test: wrong recipient ID, wrong recipient key, and tampered AAD metadata are each rejected with explicit error codes.
+  5. Forward secrecy test: session completes; recipient destroys ephemeral KEM private key; adversary obtains recipient long-term identity keys; past recorded ciphertext decryption strictly fails with `EPHEMERAL_KEY_DESTROYED`.
+  6. Chunking & Loss test (Goal 11): sequenced chunks with per-chunk SHA-256 hashes delivered out of order reassemble cleanly; dropped chunk reported as `INCOMPLETE_MESSAGE_CHUNKS`; tampered chunk rejected as `CHUNK_CHECKSUM_FAILED`.
+  7. Resumption test (Goal 12): ticket key loaded from `$TRACK4_STATE_DIR/ticket_key.bin` (0600 mode, random per run); ticket cryptographically binds peer ID and peer identity public key. Presentation by different peer or different key strictly rejected.
 - **Observed Results:**
-  - Replay rejection: Second delivery rejected with `REPLAY_ATTACK_DETECTED`.
-  - Recipient binding: Decryption fails with `AEADBadTagException` or `UNAUTHORIZED_RECIPIENT`.
-  - Forward secrecy: Adversary with Bob's static identity key fails to decapsulate ephemeral message key (ephemeral private key erased from memory).
-  - Chunk reordering & drop: Reverse chunks cleanly reassembled; dropped chunk triggers `CHUNK_STREAM_INCOMPLETE`.
-  - Resumption: Resumed within TTL succeeds; revoked actor denied with `ACTOR_REVOKED_ON_RESUME`.
+  - Replay rejection: Second delivery rejected with `MESSAGE_REPLAY_DETECTED`.
+  - Recipient binding: Decryption fails with `WRONG_RECIPIENT_ERROR`, `WRONG_RECIPIENT_KEY_FAILED`, or `SIGNATURE_VERIFICATION_FAILED`.
+  - Forward secrecy: Adversary with recipient long-term identity keys fails to decrypt historical session because ephemeral KEM private key was deleted. (Note: memory zeroization is best-effort in garbage-collected JavaScript runtime).
+  - Chunk reordering, loss & tamper: Reversed chunks cleanly reassembled; dropped chunk triggers `INCOMPLETE_MESSAGE_CHUNKS`; tampered chunk triggers `CHUNK_CHECKSUM_FAILED`.
+  - Resumption: Resumed within TTL succeeds; different peer ID rejected with `TICKET_PEER_MISMATCH`; different identity key rejected with `TICKET_IDENTITY_KEY_MISMATCH`.
 
 ---
 
@@ -147,21 +153,25 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
 - **Q: How does the system verify who is calling?**
 - **A:** The system implements a layered trust model:
   1. **Adapter Boundary:** The worker/evaluator harness executes `track4_service.cjs` with an asserted `actor` ID in the request JSON. The adapter assumes the host environment is trusted to provide authentic identity assertions and enforces strict authorization (ownership, revocation, role policies).
-  2. **Device Boundary:** When device-level access control is activated, actors must present requests signed by their enrolled device key. Device enrolments are authorized via NIST FIPS 204 ML-DSA-65 signatures from the central authority.
-  3. **Messaging Boundary:** When sending protected messages (`lib/messaging.cjs`), sender and recipient identities are cryptographically bound via ML-KEM-768 public keys and verified via ML-DSA-65 signatures.
+  2. **Device Boundary:** Device-signed access is **library-level (`lib/distributed_revocation.cjs`), not enforced by the adapter**. In library-level operations, actors present requests signed by their enrolled device key, authorized via NIST FIPS 204 ML-DSA-65 signatures from the central authority.
+  3. **Messaging Boundary:** When sending protected messages (`lib/messaging.cjs`), sender and recipient identities are cryptographically bound via ML-DSA-65 long-term identity keys and per-session signed ephemeral ML-KEM-768 prekeys.
 
-### 3. KEK & DEK Storage
+### 3. Forward Secrecy Implementation Detail
+- **Mechanism:** Senders do **NOT** encapsulate to the recipient's long-term key. Instead, the recipient generates a fresh per-session ephemeral ML-KEM-768 keypair, signs its public key with the recipient's long-term ML-DSA-65 identity key, and deletes the ephemeral private key immediately after the session.
+- **Limitations:** In a garbage-collected runtime like Node.js V8, memory zeroization of deleted KeyObjects is best-effort.
+
+### 4. KEK & DEK Storage
 - **Location:** The Key Encryption Key (KEK) and active key registry are stored in the state directory (`kek.bin` / `key_registry.json`) with strict Unix file permissions `0o600`.
 - **Threat Model Boundary:**
   - **Protected Against:** Remote unauthenticated attackers, unprivileged local system users, path traversal attacks, prototype pollution, and accidental leak via stdout/stderr.
   - **NOT Protected Against:** Local root/administrator or attacker with raw filesystem read access to the host `TRACK4_STATE_DIR`. If the state directory is compromised, the at-rest KEK is exposed.
 
-### 4. Revocation Authority & Log Checkpoint Signing Keys
+### 5. Revocation Authority & Log Checkpoint Signing Keys
 - **Location:** ML-DSA-65 private keys are loaded from `TRACK4_REVOCATION_KEY_PATH` or `TRACK4_AUDIT_KEY_PATH` (or dynamically generated in `stateDir` under `0o600` permissions).
 - **Threat Model Boundary & Log Anchor Limitations:**
   - **Protected Against:** Node-level tampering, forged revocation broadcasts by untrusted nodes, unauthorized backup injection, and replay of stale backups.
   - **Limitation 1 (Local Key Storage):** If the ML-DSA-65 checkpoint key sits in the same `stateDir` as the log, an adversary with filesystem write access to `stateDir` could rewrite the log and re-sign checkpoints. To achieve immutable guarantees, signed heads must be exported externally via `bin/verify_log.cjs --export-head <trusted-path>` and verified with `--trusted-head`.
   - **Limitation 2 (Uncheckpointed Tail):** Records appended *after* the latest signed checkpoint could be truncated undetected unless an external anchor commits to a fresher head.
 
-### 5. Adapter Staleness Isolation
+### 6. Adapter Staleness Isolation
 - **Guarantee:** The multi-node cluster `maxStalenessMs` fail-closed rule is strictly isolated to distributed node simulations (`DistributedNode`) and is **never** applied to the single-node `track4_service.cjs` adapter. Verified in `tests/adapter_staleness_safety.test.cjs` where owner reads succeed after an 8-second sleep without cluster sync sources.

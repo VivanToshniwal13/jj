@@ -133,7 +133,12 @@ function main() {
     status: 'measured'
   };
 
-  fs.writeFileSync(path.join(__dirname, '..', 'benign_evaluation_results.json'), JSON.stringify(report, null, 2), 'utf8');
+  const resultsDir = path.join(__dirname, '..', 'docs', 'results');
+  if (!fs.existsSync(resultsDir)) {
+    fs.mkdirSync(resultsDir, { recursive: true });
+  }
+
+  fs.writeFileSync(path.join(resultsDir, 'benign_evaluation_results.json'), JSON.stringify(report, null, 2), 'utf8');
 }
 
 main();

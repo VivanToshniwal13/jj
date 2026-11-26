@@ -176,7 +176,11 @@ async function main() {
     read: readStats,
     audit: auditStats
   };
-  fs.writeFileSync(path.join(__dirname, '..', 'scale_benchmark_results.json'), JSON.stringify(report, null, 2), 'utf8');
+  const resultsDir = path.join(__dirname, '..', 'docs', 'results');
+  if (!fs.existsSync(resultsDir)) {
+    fs.mkdirSync(resultsDir, { recursive: true });
+  }
+  fs.writeFileSync(path.join(resultsDir, 'scale_benchmark_results.json'), JSON.stringify(report, null, 2), 'utf8');
 }
 
 main().catch(err => {

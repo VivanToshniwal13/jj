@@ -140,7 +140,11 @@ async function main() {
     }
   };
 
-  const outPath = path.join(__dirname, '..', 'benchmark_results.json');
+  const resultsDir = path.join(__dirname, '..', 'docs', 'results');
+  if (!fs.existsSync(resultsDir)) {
+    fs.mkdirSync(resultsDir, { recursive: true });
+  }
+  const outPath = path.join(resultsDir, 'benchmark_results.json');
   fs.writeFileSync(outPath, JSON.stringify(evidenceReport, null, 2), 'utf8');
   console.log(`Saved benchmark report to ${outPath}`);
 }

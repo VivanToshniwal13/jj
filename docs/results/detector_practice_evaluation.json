@@ -1,10 +1,11 @@
 {
   "dataset": "practice/events.csv (22 events)",
+  "dataset_type": "functional check, not accuracy",
   "total_events": 22,
   "exact_label_accuracy": 1,
   "precision": 1,
   "recall": 1,
   "f1": 1,
   "median_time_to_alert_ms": 100,
-  "disclaimer": "22 practice events cannot establish broader accuracy or production baseline"
+  "disclaimer": "22 practice events are a functional check, not accuracy"
 }

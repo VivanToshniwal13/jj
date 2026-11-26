@@ -16,13 +16,13 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
 | **3. Crash recovery** | Write-Ahead Journal (WAL) for key rotation; atomic `fsync` & rename for store state; fault injection kills process mid-setup and mid-revoke. | Uncommitted pending keys wiped; active keys preserved; lock released; no corrupted half-written files. | `measured` - Verified in `tests/crash_recovery_adapter.test.cjs` & `tests/phase2.test.cjs`. Zero state corruption across `SIGKILL` fault hooks. |
 | **4. Backup integrity** | Scrypt KDF (`N=32768, r=8, p=1`), AES-256-GCM encryption, ML-DSA-65 digital signature over ciphertext + metadata only. Monotonic rollback protection. | Detects bit flips, truncation, wrong password. Restoring older backup preserves existing revocations and advances epoch. | `measured` - Verified in `tests/rollback_protection.test.cjs` & `tests/phase2.test.cjs`. Maya remains revoked after restoring pre-revocation backup. |
 | **5. Log integrity** | Tamper-evident hash chain (SHA-256 canonical lines) with periodic ML-DSA-65 signed checkpoints. Verification via `bin/verify_log.cjs`. | Verification pinpoints exact edited, injected, reordered, or truncated record index and type. Reject newlines/CRLF injection. | `measured` - Verified in `tests/phase3_log.test.cjs`. Recomputed canonical hashes detect 100% of bit flips, swaps, truncations, and forged signatures. |
-| **6. Routine and suspicious activity** | Rule & graph-based detector (`lib/detector.cjs`, `bin/detect.cjs`) evaluated against practice dataset & 1,000 synthetic benign events. | Flag unapproved role changes, post-escalation reads, and distinguish routine operations without ML. | `measured` - Verified via `scripts/evaluate_detector.cjs`. 100% precision, 100% recall, 100% F1 on practice set; 0 false alerts / 1,000 benign events (`scripts/generate_benign_workload.cjs`). |
-| **7. Lateral movement** | Graph edge correlation across session & flow IDs (`flow-005` in `events.csv`). | Chain multi-hop unexpected service traversals (`reports -> billing -> archive -> identity`) and separate from isolated denials (`evt-020`). | `measured` - Verified in `tests/detector_isolation.test.cjs` & `scripts/evaluate_detector.cjs`. Chains `evt-010..012` as candidate traversal; isolates `evt-020`. |
-| **8. Clock differences** | Logical & collector timeline alignment for skewed/out-of-order events (`evt-013..015`). | Preserve raw timestamps while calculating `estimated_event_time_utc`. Flag ordering as uncertain within ±500ms window. | `measured` - Verified in `tests/detector_isolation.test.cjs`. Corrects +2000ms offset on `evt-015`; flags `evt-013` delayed arrival without data loss. |
-| **9. Replay and recipient binding** | Freshness nonce + ML-KEM-768 ciphertext + recipient identity binding. | Duplicate message rejection and wrong-recipient decryption failure. | `pending` (Phase 5) |
-| **10. Forward secrecy** | Ephemeral ML-KEM-768 key encapsulation per message exchange; zeroization of ephemeral secrets. | Compromise of long-term identity cannot decrypt historical ephemeral sessions. | `pending` (Phase 5) |
-| **11. Delivery under loss or reordering** | Sequence numbers, retry tracking, and deduplication buffer. | Guaranteed in-order processing despite synthetic drops or reordering. | `pending` (Phase 5) |
-| **12. Session resumption** | Ticket-based resumption with bounded validity and fresh policy re-evaluation. | Safe reconnect without full key handshake; revoked identity denied on resume. | `pending` (Phase 5) |
+| **6. Routine and suspicious activity** | Rule & graph-based detector (`lib/detector.cjs`, `bin/detect.cjs`) evaluated against practice dataset & 1,000 synthetic benign events. | Flag unapproved role changes, post-escalation reads, and distinguish routine operations without ML. | `measured` - Verified via `scripts/evaluate_detector.cjs` (22/22, functional check, not accuracy) & `scripts/evaluate_attack_set.cjs` (44/44, 100% recall); 0 false alerts / 1,000 benign events (`scripts/generate_benign_workload.cjs`). |
+| **7. Lateral movement** | Graph edge correlation across session & flow IDs (`flow-005` in `events.csv`, 2-to-5 hop campaigns in attack set). | Chain multi-hop unexpected service traversals (`reports -> billing -> archive -> identity`) across distinct targets; isolate single denials (`evt-020`). | `measured` - Verified in `tests/detector_isolation.test.cjs` & `scripts/evaluate_attack_set.cjs`. Detects 2-hop, 3-hop, 4-hop, and 5-hop traversals with zero false alerts on isolated denials. |
+| **8. Clock differences** | Logical & collector timeline alignment for skewed/out-of-order events (`evt-013..015` and attack set). | Preserve raw timestamps while calculating `estimated_event_time_utc`. Flag ordering as uncertain within ±500ms window; alert on excessive skew (>±5000ms). | `measured` - Verified in `tests/detector_isolation.test.cjs`. Corrects +2000ms offset on `evt-015`; flags `evt-013` delayed arrival; flags +8500ms and -7000ms excessive skew in attack set. |
+| **9. Replay and recipient binding** | Freshness nonce + ML-KEM-768 ciphertext + recipient identity binding. | Duplicate message rejection and wrong-recipient decryption failure. | `not tested` |
+| **10. Forward secrecy** | Ephemeral ML-KEM-768 key encapsulation per message exchange; zeroization of ephemeral secrets. | Compromise of long-term identity cannot decrypt historical ephemeral sessions. | `not tested` |
+| **11. Delivery under loss or reordering** | Sequence numbers, retry tracking, and deduplication buffer. | Guaranteed in-order processing despite synthetic drops or reordering. | `not tested` |
+| **12. Session resumption** | Ticket-based resumption with bounded validity and fresh policy re-evaluation. | Safe reconnect without full key handshake; revoked identity denied on resume. | `not tested` |
 
 ---
 
@@ -71,21 +71,31 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
   - `audit` (N=100, cold-start): p50 = **58.72 ms** | p95 = **60.72 ms** | p99 = **67.04 ms** (mean: 58.83 ms)
 - **Limits & Notes:** Decoupling audit lookup from raw log scanning ensures sub-100ms cold-start execution even with thousands of historical records.
 
-### Measurement 6: Explainable Detection & Benign Baseline (Goals 6, 7, 8)
-- **Claim:** Rule- and graph-based detector flags unapproved role escalations and multi-hop lateral traversal without machine learning or pretrained models, maintaining 0 false alerts on routine workloads.
-- **Setup & Workload:** Evaluated via `scripts/evaluate_detector.cjs` on the practice dataset (`events.csv`, 22 events) and `scripts/generate_benign_workload.cjs` on 1,000 synthetic routine events.
+### Measurement 6: Explainable Detection, Attack Set & Benign Baseline (Goals 6, 7, 8)
+- **Claim:** Rule- and graph-based detector flags unapproved role escalations, out-of-scope accesses, and multi-hop lateral traversal without machine learning or pretrained models, maintaining 0 false alerts on routine workloads.
+- **Setup & Workload:** Evaluated via:
+  1. `scripts/evaluate_detector.cjs` on the practice dataset (`events.csv`, 22 events).
+  2. `scripts/evaluate_attack_set.cjs` on a synthetic attack set with 51 events (44 attacks across varied actors, services, 2-to-5 hop traversals, expired/wrong-scope approvals, and boundary times).
+  3. `scripts/generate_benign_workload.cjs` on 1,000 synthetic routine/benign events.
 - **Observed Results:**
-  - **Practice Dataset (22 events):**
+  - **Practice Dataset (22 events - Functional check, not statistical accuracy):**
     - Exact label match: **22 / 22 (100.0%)**
     - Alert Detection Precision: **100.0%**
     - Alert Detection Recall: **100.0%**
     - Alert Detection F1: **100.0%**
-    - Median Ingestion Delay: **100 ms**
+    - Proper Median Time to Alert: **100 ms** (alert arrival time - estimated event time)
+  - **Synthetic Attack Dataset (51 events, 44 attacks):**
+    - Expected Attacks in Set: **44**
+    - Attacks Correctly Detected: **44**
+    - Attacks Missed: **0**
+    - Attack Detection Recall: **100.0%**
+    - Proper Median Time to Alert: **80 ms** (alert arrival time - estimated event time)
+    - False Alerts on Benign Test Events: **0 / 7**
   - **Synthetic Benign Workload (1,000 events):**
     - Security Alerts Triggered: **0**
     - High-Severity False Alert Rate: **0 per 1,000 benign events**
   - **Isolation Verification:** `tests/detector_isolation.test.cjs` confirms `lib/detector.cjs` contains zero references to `labels.csv` and never accesses ground truth at runtime.
-- **Methodology Disclaimer:** The 22 events in the practice dataset demonstrate functional capability only (role checks, lateral graph paths, and clock skew). A 22-event dataset cannot establish statistical confidence or production baseline accuracy.
+- **Methodology Disclaimer:** The 22 events in the practice dataset demonstrate functional capability only (role checks, lateral graph paths, and clock skew). A 22-event dataset cannot establish statistical confidence or production baseline accuracy. All baseline service edges are configured externally in `detector-config.json`.
 
 ---
 

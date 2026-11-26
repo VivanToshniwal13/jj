@@ -1,0 +1,9 @@
+{
+  "total_events": 51,
+  "expected_attacks": 44,
+  "detected_attacks": 44,
+  "missed_attacks": 0,
+  "missed_cases": [],
+  "recall_percent": 100,
+  "median_time_to_alert_ms": 80
+}

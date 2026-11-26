@@ -1,0 +1,21 @@
+{
+  "description": "Baseline service edge and anomaly detection configuration for ExplainableDetector",
+  "version": "1.0.0",
+  "known_service_edges": [
+    "portal->identity",
+    "portal->catalog",
+    "portal->reports",
+    "portal->reports-node-a",
+    "portal->reports-node-b",
+    "admin-console->identity",
+    "reports->catalog"
+  ],
+  "clock_skew": {
+    "skew_uncertainty_ms": 500,
+    "max_supported_skew_ms": 5000
+  },
+  "lateral_movement": {
+    "min_unexpected_hops": 2,
+    "min_distinct_targets": 2
+  }
+}

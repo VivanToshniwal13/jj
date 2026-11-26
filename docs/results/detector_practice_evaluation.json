@@ -3,9 +3,14 @@
   "dataset_type": "functional check, not accuracy",
   "total_events": 22,
   "exact_label_accuracy": 1,
+  "true_positives": 5,
+  "false_positives": 0,
+  "true_negatives": 17,
+  "false_negatives": 0,
   "precision": 1,
   "recall": 1,
   "f1": 1,
   "median_time_to_alert_ms": 100,
+  "p95_time_to_alert_ms": 200,
   "disclaimer": "22 practice events are a functional check, not accuracy"
 }

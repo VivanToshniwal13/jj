@@ -111,4 +111,44 @@ test('Hardening 5: Concurrency & Lock Stress Testing', async () => {
   }, { TRACK4_STATE_DIR: testStateDir });
   const sharedJson = JSON.parse(finalSharedRead.stdout);
   assert.equal(sharedJson.decision, 'deny');
+
+  // Hardening 5.1: Duplicate message delivery under concurrent processes
+  const { ProtectedMessagingEngine } = require('../lib/messaging.cjs');
+  const replayStateDir = path.join('/tmp', `track4-replay-concurrency-${Date.now()}`);
+  const senderKp = ProtectedMessagingEngine.generateIdentityKeyPair();
+  const receiverKp = ProtectedMessagingEngine.generateIdentityKeyPair();
+  const receiverPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(receiverKp.dsa.privateKey);
+
+  const engine1 = new ProtectedMessagingEngine(replayStateDir);
+  const engine2 = new ProtectedMessagingEngine(replayStateDir);
+
+  const packet = engine1.sendMessage(
+    'alice-concurrent',
+    senderKp.dsa.privateKey,
+    'bob-concurrent',
+    receiverKp.dsa.publicKey,
+    receiverPrekey,
+    'Concurrent Payload'
+  );
+
+  // Deliver the exact same packet simultaneously across two independent engine instances
+  let successCount = 0;
+  let replayErrorCount = 0;
+
+  const deliveries = await Promise.allSettled([
+    Promise.resolve().then(() => engine1.receiveMessage('bob-concurrent', receiverPrekey, senderKp.dsa.publicKey, packet)),
+    Promise.resolve().then(() => engine2.receiveMessage('bob-concurrent', receiverPrekey, senderKp.dsa.publicKey, packet))
+  ]);
+
+  for (const res of deliveries) {
+    if (res.status === 'fulfilled') {
+      successCount++;
+    } else if (res.reason && res.reason.message && res.reason.message.includes('MESSAGE_REPLAY_DETECTED')) {
+      replayErrorCount++;
+    }
+  }
+
+  // Exactly 1 must succeed and the other must be rejected with MESSAGE_REPLAY_DETECTED
+  assert.equal(successCount, 1, 'Exactly one delivery must succeed');
+  assert.equal(replayErrorCount, 1, 'Duplicate concurrent delivery must be caught as replay');
 });

@@ -46,6 +46,7 @@ function durableWriteFile(targetPath, data, mode = 0o600) {
 // O_EXCL Lockfile for atomic read-modify-write concurrency
 async function withStateLock(stateDir, fn) {
   const lockPath = path.join(stateDir, 'state.lock');
+  const lockToken = crypto.randomUUID();
   const start = Date.now();
   let fd = null;
 
@@ -53,33 +54,48 @@ async function withStateLock(stateDir, fn) {
     try {
       fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
       try {
-        fs.writeSync(fd, `${process.pid}\n`);
+        const payload = JSON.stringify({ pid: process.pid, token: lockToken, createdAt: Date.now() });
+        fs.writeSync(fd, `${payload}\n`);
+        fs.fsyncSync(fd);
       } catch {}
       break;
     } catch (err) {
       if (err.code === 'EEXIST') {
+        let isDead = false;
         try {
           const content = fs.readFileSync(lockPath, 'utf8').trim();
-          const lockPid = parseInt(content, 10);
-          if (!isNaN(lockPid)) {
+          if (content) {
+            let parsed;
             try {
-              process.kill(lockPid, 0); // Check if process still exists
-            } catch (kerr) {
-              if (kerr.code === 'ESRCH') {
-                // Process holding lock is dead - break stale lock immediately
-                fs.unlinkSync(lockPath);
-                continue;
+              parsed = JSON.parse(content);
+              if (typeof parsed === 'number') {
+                parsed = { pid: parsed };
+              }
+            } catch {
+              const lockPid = parseInt(content, 10);
+              if (!isNaN(lockPid)) parsed = { pid: lockPid };
+            }
+            if (parsed && typeof parsed.pid === 'number') {
+              try {
+                process.kill(parsed.pid, 0); // Check if process still exists
+              } catch (kerr) {
+                if (kerr.code === 'ESRCH') {
+                  // Process holding lock is reliably dead - break stale lock immediately
+                  isDead = true;
+                }
               }
             }
-          }
-          const stat = fs.statSync(lockPath);
-          if (Date.now() - stat.mtimeMs > LOCK_TIMEOUT_MS) {
-            fs.unlinkSync(lockPath);
-            continue;
           }
         } catch {
           // Lock might have been released or stat failed
         }
+
+        if (isDead) {
+          try { fs.unlinkSync(lockPath); } catch {}
+          continue;
+        }
+
+        // Lock belongs to an active process. Never steal simply due to elapsed time.
         await new Promise(r => setTimeout(r, LOCK_RETRY_MS + Math.floor(Math.random() * 15)));
       } else {
         throw err;
@@ -97,7 +113,17 @@ async function withStateLock(stateDir, fn) {
     try { fs.closeSync(fd); } catch {}
     try {
       if (fs.existsSync(lockPath)) {
-        fs.unlinkSync(lockPath);
+        const content = fs.readFileSync(lockPath, 'utf8').trim();
+        let parsed;
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          const lockPid = parseInt(content, 10);
+          if (!isNaN(lockPid)) parsed = { pid: lockPid, token: null };
+        }
+        if (parsed && parsed.token === lockToken && parsed.pid === process.pid) {
+          fs.unlinkSync(lockPath);
+        }
       }
     } catch {}
   }

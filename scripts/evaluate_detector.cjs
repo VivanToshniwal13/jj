@@ -110,17 +110,40 @@ function main() {
   const recall = truePositives + falseNegatives > 0 ? truePositives / (truePositives + falseNegatives) : 1;
   const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 1;
 
-  alertLatencies.sort((a, b) => a - b);
-  const medianAlertLatency = alertLatencies.length > 0 ? alertLatencies[Math.floor(alertLatencies.length / 2)] : 0;
+  function calculateMedian(arr) {
+    if (!arr || arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+      return (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+    return sorted[mid];
+  }
+
+  function calculateP95(arr) {
+    if (!arr || arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const idx = Math.min(Math.floor(sorted.length * 0.95), sorted.length - 1);
+    return sorted[idx];
+  }
+
+  const medianAlertLatency = calculateMedian(alertLatencies);
+  const p95AlertLatency = calculateP95(alertLatencies);
 
   console.log('\n----------------------------------------------------------------');
   console.log('METRICS SUMMARY ON PRACTICE SET (FUNCTIONAL CHECK, NOT ACCURACY):');
   console.log(`  Total Events Analyzed:    ${rawEvents.length}`);
   console.log(`  Exact Label Matches:      ${totalExactMatches} / ${rawEvents.length} (functional check: 100.0%)`);
+  console.log(`  Confusion Matrix:`);
+  console.log(`    True Positives (TP):    ${truePositives}`);
+  console.log(`    False Positives (FP):   ${falsePositives}`);
+  console.log(`    True Negatives (TN):    ${trueNegatives}`);
+  console.log(`    False Negatives (FN):   ${falseNegatives}`);
   console.log(`  Alert Detection Precision: ${(precision * 100).toFixed(1)}%`);
   console.log(`  Alert Detection Recall:    ${(recall * 100).toFixed(1)}%`);
   console.log(`  Alert Detection F1 Score:  ${(f1 * 100).toFixed(1)}%`);
-  console.log(`  Proper Median Time to Alert: ${medianAlertLatency} ms (alert arrival - estimated event time)`);
+  console.log(`  Median Time to Alert:      ${medianAlertLatency} ms (alert arrival - estimated event time)`);
+  console.log(`  p95 Time to Alert:         ${p95AlertLatency} ms`);
   console.log('----------------------------------------------------------------');
   console.log('HONEST METHODOLOGY DISCLAIMER:');
   console.log('Notice: 22 practice events demonstrate functional capabilities only');
@@ -139,10 +162,15 @@ function main() {
     dataset_type: 'functional check, not accuracy',
     total_events: rawEvents.length,
     exact_label_accuracy: totalExactMatches / rawEvents.length,
+    true_positives: truePositives,
+    false_positives: falsePositives,
+    true_negatives: trueNegatives,
+    false_negatives: falseNegatives,
     precision,
     recall,
     f1,
     median_time_to_alert_ms: medianAlertLatency,
+    p95_time_to_alert_ms: p95AlertLatency,
     disclaimer: '22 practice events are a functional check, not accuracy'
   };
 

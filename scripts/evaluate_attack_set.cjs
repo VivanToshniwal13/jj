@@ -480,20 +480,47 @@ function main() {
     }
   }
 
-  properTimeToAlertLatencies.sort((a, b) => a - b);
-  const medianTimeToAlert = properTimeToAlertLatencies.length > 0 
-    ? properTimeToAlertLatencies[Math.floor(properTimeToAlertLatencies.length / 2)] 
-    : 0;
+  function calculateMedian(arr) {
+    if (!arr || arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+      return (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+    return sorted[mid];
+  }
 
-  const recall = (detectedAttacks / expectedAttacks) * 100;
+  function calculateP95(arr) {
+    if (!arr || arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const idx = Math.min(Math.floor(sorted.length * 0.95), sorted.length - 1);
+    return sorted[idx];
+  }
 
-  console.log('RESULTS ON ATTACK SET:');
-  console.log(`  Expected Attacks in Set:     ${expectedAttacks}`);
-  console.log(`  Attacks Correctly Detected:  ${detectedAttacks}`);
-  console.log(`  Attacks Missed:              ${missedAttacks}`);
-  console.log(`  Attack Detection Recall:     ${recall.toFixed(1)}%`);
-  console.log(`  Proper Median Time to Alert: ${medianTimeToAlert} ms (alert arrival - estimated event time)`);
-  console.log(`  False Alerts on Benign Test: ${falseAlertsOnAttackSet} / ${expectedBenign}`);
+  const medianTimeToAlert = calculateMedian(properTimeToAlertLatencies);
+  const p95TimeToAlert = calculateP95(properTimeToAlertLatencies);
+
+  const tp = detectedAttacks;
+  const fn = missedAttacks;
+  const fp = falseAlertsOnAttackSet;
+  const tn = expectedBenign - falseAlertsOnAttackSet;
+
+  const precision = (tp + fp) > 0 ? (tp / (tp + fp)) : 1;
+  const recall = (tp + fn) > 0 ? (tp / (tp + fn)) : 1;
+  const f1 = (precision + recall) > 0 ? ((2 * precision * recall) / (precision + recall)) : 1;
+
+  console.log('RESULTS ON ATTACK SET (SYNTHETIC BENCHMARK):');
+  console.log(`  Total Evaluated Events:      ${events.length}`);
+  console.log(`  Confusion Matrix:`);
+  console.log(`    True Positives (TP):       ${tp}`);
+  console.log(`    False Positives (FP):      ${fp}`);
+  console.log(`    True Negatives (TN):       ${tn}`);
+  console.log(`    False Negatives (FN):      ${fn}`);
+  console.log(`  Precision:                   ${(precision * 100).toFixed(1)}%`);
+  console.log(`  Recall:                      ${(recall * 100).toFixed(1)}%`);
+  console.log(`  F1 Score:                    ${(f1 * 100).toFixed(1)}%`);
+  console.log(`  Median Time to Alert:        ${medianTimeToAlert} ms (alert arrival - estimated event time)`);
+  console.log(`  p95 Time to Alert:           ${p95TimeToAlert} ms`);
 
   if (missedList.length > 0) {
     console.log('\nMissed Attack Cases:');
@@ -516,9 +543,16 @@ function main() {
     expected_attacks: expectedAttacks,
     detected_attacks: detectedAttacks,
     missed_attacks: missedAttacks,
-    missed_cases: missedList,
-    recall_percent: recall,
-    median_time_to_alert_ms: medianTimeToAlert
+    true_positives: tp,
+    false_positives: fp,
+    true_negatives: tn,
+    false_negatives: fn,
+    precision: precision,
+    recall_percent: recall * 100,
+    f1_percent: f1 * 100,
+    median_time_to_alert_ms: medianTimeToAlert,
+    p95_time_to_alert_ms: p95TimeToAlert,
+    missed_cases: missedList
   };
 
   fs.writeFileSync(path.join(resultsDir, 'attack_evaluation_results.json'), JSON.stringify(report, null, 2), 'utf8');

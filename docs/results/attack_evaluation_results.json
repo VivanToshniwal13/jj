@@ -3,7 +3,14 @@
   "expected_attacks": 44,
   "detected_attacks": 44,
   "missed_attacks": 0,
-  "missed_cases": [],
+  "true_positives": 44,
+  "false_positives": 0,
+  "true_negatives": 7,
+  "false_negatives": 0,
+  "precision": 1,
   "recall_percent": 100,
-  "median_time_to_alert_ms": 80
+  "f1_percent": 100,
+  "median_time_to_alert_ms": 80,
+  "p95_time_to_alert_ms": 100,
+  "missed_cases": []
 }

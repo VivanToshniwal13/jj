@@ -104,8 +104,11 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
     }, /SIGNATURE_VERIFICATION_FAILED/);
   });
 
-  // 4. Goal 10: Forward Secrecy Proof
+  // 4. Goal 10: Forward Secrecy Proof (Cryptographic Wire Bytes & Leaked Long-Term Keys)
   await t.test('4. Goal 10 Forward Secrecy: Compromising long-term identity keys post-session cannot decrypt past recorded ciphertexts', () => {
+    // Bob also holds a long-term ML-KEM identity keypair in addition to ML-DSA identity key
+    const bobLongTermKem = crypto.generateKeyPairSync('ml-kem-768');
+
     // 1. Recipient generates ephemeral ML-KEM prekey for this session
     const bobEphemeralPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
 
@@ -130,19 +133,66 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
     assert.equal(bobEphemeralPrekey.destroyed, true);
     assert.equal(bobEphemeralPrekey.ephemeralPrivateKey, null);
 
-    // 4. Post-session: adversary steals Bob's LONG-TERM identity keypair (ML-DSA-65) and captured ciphertexts
-    const leakedBobLongTermKey = bob.dsa.privateKey;
-    assert.ok(leakedBobLongTermKey);
-
-    // 5. Adversary attempts to decrypt captured historical ciphertext using long-term key
-    // Since ephemeral KEM private key was deleted and cannot be derived from ML-DSA signing keys, decryption MUST FAIL
+    // 4. Code-path guard check
     const attackerEngine = new ProtectedMessagingEngine();
     assert.throws(() => {
       attackerEngine.receiveMessage('bob', bobEphemeralPrekey, alice.dsa.publicKey, packet);
     }, /EPHEMERAL_KEY_DESTROYED/);
+
+    // 5. Cryptographic Proof: Attacker holds ONLY the recorded wire bytes and ALL leaked long-term identity secret keys
+    const wireKemCiphertext = Buffer.from(packet.kem_ciphertext_b64, 'base64');
+    const wireSalt = Buffer.from(packet.salt_hex, 'hex');
+    const wireIv = Buffer.from(packet.iv_hex, 'hex');
+    const wireCiphertext = Buffer.from(packet.ciphertext_b64, 'base64');
+    const wireAuthTag = Buffer.from(packet.auth_tag_hex, 'hex');
+    const wireAadBuffer = Buffer.from(JSON.stringify(packet.aad), 'utf8');
+
+    const leakedKeys = [
+      { name: 'bob_long_term_dsa_key', key: bob.dsa.privateKey, isKem: false },
+      { name: 'bob_long_term_kem_key', key: bobLongTermKem.privateKey, isKem: true },
+      { name: 'alice_long_term_dsa_key', key: alice.dsa.privateKey, isKem: false }
+    ];
+
+    let recoveredPlaintext = null;
+
+    for (const leaked of leakedKeys) {
+      if (!leaked.isKem) {
+        // ML-DSA keys cannot decapsulate ML-KEM ciphertexts
+        assert.throws(() => {
+          crypto.decapsulate(leaked.key, wireKemCiphertext);
+        });
+      } else {
+        // Bob's long-term ML-KEM key is NOT the ephemeral prekey that was encapsulated against
+        let attackerSharedKey;
+        try {
+          attackerSharedKey = crypto.decapsulate(leaked.key, wireKemCiphertext);
+        } catch {
+          // Some implementations throw on invalid ciphertext
+          attackerSharedKey = null;
+        }
+
+        if (attackerSharedKey) {
+          const info = Buffer.from(`ProtectedMessaging-v1:${packet.aad.sender_id}->${packet.aad.recipient_id}:${packet.message_id}:${packet.aad.sequence_number}`, 'utf8');
+          const attackerAesKey = crypto.hkdfSync('sha256', attackerSharedKey, wireSalt, info, 32);
+
+          // AES-256-GCM authentication tag verification MUST fail
+          assert.throws(() => {
+            const decipher = crypto.createDecipheriv('aes-256-gcm', attackerAesKey, wireIv);
+            decipher.setAAD(wireAadBuffer);
+            decipher.setAuthTag(wireAuthTag);
+            let pt = decipher.update(wireCiphertext, null, 'utf8');
+            pt += decipher.final('utf8');
+            recoveredPlaintext = pt;
+          }, /Unsupported state or unable to authenticate data/);
+        }
+      }
+    }
+
+    // Cryptographic assertion: Zero plaintext recovered by adversary with all long-term keys
+    assert.equal(recoveredPlaintext, null);
   });
 
-  // 5. Goal 11: Loss, Chunking, Reordering & Tamper Rejection
+  // 5. Goal 11: Loss, Chunking, Reordering & Tamper Rejection (Authenticated Chunks)
   await t.test('5. Goal 11 Delivery: Chunks out of order are reassembled, dropped chunk is reported, tampered chunk is rejected', () => {
     const bobSessionPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
     const longPayload = 'Large clinical record payload with sequence markers: '.repeat(10);
@@ -155,13 +205,14 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
       longPayload
     );
 
-    // Split into 48-byte chunks (includes per-chunk SHA-256 hash)
-    const chunks = ProtectedMessagingEngine.chunkMessage(packet, 48);
+    // Split into 48-byte chunks authenticated with Alice's ML-DSA identity key
+    const chunks = ProtectedMessagingEngine.chunkMessage(packet, alice.dsa.privateKey, 48);
     assert.ok(chunks.length > 3);
+    assert.ok(chunks[0].auth_sig_b64);
 
     // Case A: Deliver out-of-order (reversed) -> successfully reassembles
     const shuffled = [...chunks].reverse();
-    const reassembled = ProtectedMessagingEngine.reassembleChunks(shuffled);
+    const reassembled = ProtectedMessagingEngine.reassembleChunks(shuffled, alice.dsa.publicKey);
 
     const reassembledEngine = new ProtectedMessagingEngine();
     const result = reassembledEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, reassembled);
@@ -170,15 +221,15 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
     // Case B: Drop chunk 1 to simulate network loss -> INCOMPLETE_MESSAGE_CHUNKS reported
     const droppedChunks = [chunks[0], chunks[2], chunks[3]];
     assert.throws(() => {
-      ProtectedMessagingEngine.reassembleChunks(droppedChunks);
+      ProtectedMessagingEngine.reassembleChunks(droppedChunks, alice.dsa.publicKey);
     }, /INCOMPLETE_MESSAGE_CHUNKS/);
 
-    // Case C: Tamper with chunk data -> CHUNK_CHECKSUM_FAILED rejected
+    // Case C: Tamper with chunk data -> CHUNK_AUTH_FAILED rejected
     const tamperedChunks = JSON.parse(JSON.stringify(chunks));
     tamperedChunks[0].chunk_data = tamperedChunks[0].chunk_data.replace('{', ' ');
     assert.throws(() => {
-      ProtectedMessagingEngine.reassembleChunks(tamperedChunks);
-    }, /CHUNK_CHECKSUM_FAILED/);
+      ProtectedMessagingEngine.reassembleChunks(tamperedChunks, alice.dsa.publicKey);
+    }, /CHUNK_AUTH_FAILED/);
   });
 
   // 6. Goal 12: Session Resumption Ticket with StateDir Storage & Peer Identity Binding

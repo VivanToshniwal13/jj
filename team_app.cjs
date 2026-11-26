@@ -6,6 +6,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { KeyLifecycleManager } = require('./lib/key_lifecycle.cjs');
 const { TamperEvidentLog } = require('./lib/tamper_log.cjs');
+const { AuditIndex } = require('./lib/audit_index.cjs');
 
 // ML-KEM-768 SPKI DER Prefix (RFC 9629 / NIST FIPS 203)
 const ML_KEM_768_SPKI_PREFIX = Buffer.from('308204b2300b0609608648016503040402038204a100', 'hex');
@@ -216,6 +217,7 @@ exports.dispatch = async function dispatch(request) {
   const stateDir = getStateDir();
   const km = new KeyLifecycleManager(stateDir);
   const tamperLog = new TamperEvidentLog(stateDir);
+  const auditIndex = new AuditIndex(stateDir);
 
   return await withStateLock(stateDir, async () => {
     switch (op) {
@@ -295,7 +297,8 @@ exports.dispatch = async function dispatch(request) {
         }
 
         // Audit integrity: First-Write-Wins
-        if (!state.audit_events.has(requestId)) {
+        if (!auditIndex.has(requestId)) {
+          auditIndex.record(requestId, decision);
           state.audit_events.set(requestId, {
             request_id: requestId,
             decision
@@ -329,6 +332,13 @@ exports.dispatch = async function dispatch(request) {
 
       case 'audit': {
         const requestId = validateStringId(request.request_id, 'request_id');
+        const indexedDecision = auditIndex.get(requestId);
+        if (indexedDecision) {
+          return {
+            request_id: requestId,
+            decision: indexedDecision
+          };
+        }
         const state = loadState(stateDir);
         const entry = state.audit_events.get(requestId);
         if (entry) {
@@ -371,7 +381,8 @@ exports.dispatch = async function dispatch(request) {
 
         if (!isOwner || isDisabled || isRevoked || !record) {
           if (request.request_id && typeof request.request_id === 'string') {
-            if (!state.audit_events.has(request.request_id)) {
+            if (!auditIndex.has(request.request_id)) {
+              auditIndex.record(request.request_id, 'deny');
               state.audit_events.set(request.request_id, {
                 request_id: request.request_id,
                 decision: 'deny'
@@ -413,7 +424,8 @@ exports.dispatch = async function dispatch(request) {
 
         // Audit log allowed protected_read if request_id provided
         if (request.request_id && typeof request.request_id === 'string') {
-          if (!state.audit_events.has(request.request_id)) {
+          if (!auditIndex.has(request.request_id)) {
+            auditIndex.record(request.request_id, 'allow');
             state.audit_events.set(request.request_id, {
               request_id: request.request_id,
               decision: 'allow'

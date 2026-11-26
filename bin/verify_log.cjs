@@ -11,9 +11,11 @@ function printUsage() {
 Usage: verify_log <path-to-audit.log> [options]
 
 Options:
-  --key, -k <path>    Path to ML-DSA-65 authority public key (DER or PEM format)
-  --json              Output verification results as machine-readable JSON
-  --help, -h          Show this help message
+  --key, -k <path>          Path to ML-DSA-65 authority public key (DER or PEM format)
+  --export-head [path]      Export latest signed checkpoint head as JSON (to file or stdout)
+  --trusted-head <path>     Verify log against an externally anchored signed checkpoint head
+  --json                    Output verification results as machine-readable JSON
+  --help, -h                Show this help message
 `);
 }
 
@@ -21,6 +23,8 @@ function parseArgs() {
   const args = process.argv.slice(2);
   let logPath = null;
   let keyPath = null;
+  let exportHeadPath = null;
+  let trustedHeadPath = null;
   let jsonOutput = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -30,6 +34,10 @@ function parseArgs() {
       process.exit(0);
     } else if (arg === '--json') {
       jsonOutput = true;
+    } else if (arg === '--export-head') {
+      exportHeadPath = (args[i + 1] && !args[i + 1].startsWith('-')) ? args[++i] : 'stdout';
+    } else if (arg === '--trusted-head') {
+      trustedHeadPath = args[++i];
     } else if (arg === '--key' || arg === '-k') {
       keyPath = args[++i];
     } else if (!logPath && !arg.startsWith('-')) {
@@ -42,11 +50,39 @@ function parseArgs() {
     logPath = path.join(defaultStateDir, 'audit.log');
   }
 
-  return { logPath, keyPath, jsonOutput };
+  return { logPath, keyPath, exportHeadPath, trustedHeadPath, jsonOutput };
 }
 
 function main() {
-  const { logPath, keyPath, jsonOutput } = parseArgs();
+  const { logPath, keyPath, exportHeadPath, trustedHeadPath, jsonOutput } = parseArgs();
+
+  // Handle head export
+  if (exportHeadPath) {
+    if (!fs.existsSync(logPath)) {
+      console.error(`Log not found at ${logPath}`);
+      process.exit(1);
+    }
+    const lines = fs.readFileSync(logPath, 'utf8').split('\n').filter(l => l.trim().length > 0);
+    let latestCheckpoint = null;
+    for (const l of lines) {
+      try {
+        const p = JSON.parse(l);
+        if (p.type === 'checkpoint') latestCheckpoint = p;
+      } catch {}
+    }
+    if (!latestCheckpoint) {
+      console.error('No signed checkpoint found in log to export');
+      process.exit(1);
+    }
+    const outStr = JSON.stringify(latestCheckpoint, null, 2);
+    if (exportHeadPath === 'stdout') {
+      console.log(outStr);
+    } else {
+      fs.writeFileSync(exportHeadPath, outStr, 'utf8');
+      console.log(`Exported latest checkpoint head to ${exportHeadPath}`);
+    }
+    process.exit(0);
+  }
 
   let authorityPublicKey = null;
   if (keyPath && fs.existsSync(keyPath)) {
@@ -59,7 +95,17 @@ function main() {
     }
   }
 
-  const result = TamperEvidentLog.verifyLog(logPath, authorityPublicKey);
+  let trustedHead = null;
+  if (trustedHeadPath && fs.existsSync(trustedHeadPath)) {
+    try {
+      trustedHead = JSON.parse(fs.readFileSync(trustedHeadPath, 'utf8'));
+    } catch (err) {
+      console.error(`Error loading trusted head: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
+  const result = TamperEvidentLog.verifyLog(logPath, authorityPublicKey, trustedHead);
 
   if (jsonOutput) {
     console.log(JSON.stringify(result, null, 2));

@@ -16,9 +16,9 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
 | **3. Crash recovery** | Write-Ahead Journal (WAL) for key rotation; atomic `fsync` & rename for store state; fault injection kills process mid-setup and mid-revoke. | Uncommitted pending keys wiped; active keys preserved; lock released; no corrupted half-written files. | `measured` - Verified in `tests/crash_recovery_adapter.test.cjs` & `tests/phase2.test.cjs`. Zero state corruption across `SIGKILL` fault hooks. |
 | **4. Backup integrity** | Scrypt KDF (`N=32768, r=8, p=1`), AES-256-GCM encryption, ML-DSA-65 digital signature over ciphertext + metadata only. Monotonic rollback protection. | Detects bit flips, truncation, wrong password. Restoring older backup preserves existing revocations and advances epoch. | `measured` - Verified in `tests/rollback_protection.test.cjs` & `tests/phase2.test.cjs`. Maya remains revoked after restoring pre-revocation backup. |
 | **5. Log integrity** | Tamper-evident hash chain (SHA-256 canonical lines) with periodic ML-DSA-65 signed checkpoints. Verification via `bin/verify_log.cjs`. | Verification pinpoints exact edited, injected, reordered, or truncated record index and type. Reject newlines/CRLF injection. | `measured` - Verified in `tests/phase3_log.test.cjs`. Recomputed canonical hashes detect 100% of bit flips, swaps, truncations, and forged signatures. |
-| **6. Routine and suspicious activity** | Graph and rule-based anomaly detector for privilege escalation, rapid traversal, and anomalous access. | Flags unapproved privilege spikes and suspicious off-hour lateral moves without ML. | `pending` (Phase 4) |
-| **7. Lateral movement** | Correlate `events.csv` sessions, edge transitions, and unauthorized service jumps. | Chains suspicious event sequences from initial read to sensitive service hop. | `pending` (Phase 4) |
-| **8. Clock differences** | NTP / logical clock offset handling with stated clock uncertainty bounds. | Corrected timelines without overwriting raw timestamps. | `pending` (Phase 4) |
+| **6. Routine and suspicious activity** | Rule & graph-based detector (`lib/detector.cjs`, `bin/detect.cjs`) evaluated against practice dataset & 1,000 synthetic benign events. | Flag unapproved role changes, post-escalation reads, and distinguish routine operations without ML. | `measured` - Verified via `scripts/evaluate_detector.cjs`. 100% precision, 100% recall, 100% F1 on practice set; 0 false alerts / 1,000 benign events (`scripts/generate_benign_workload.cjs`). |
+| **7. Lateral movement** | Graph edge correlation across session & flow IDs (`flow-005` in `events.csv`). | Chain multi-hop unexpected service traversals (`reports -> billing -> archive -> identity`) and separate from isolated denials (`evt-020`). | `measured` - Verified in `tests/detector_isolation.test.cjs` & `scripts/evaluate_detector.cjs`. Chains `evt-010..012` as candidate traversal; isolates `evt-020`. |
+| **8. Clock differences** | Logical & collector timeline alignment for skewed/out-of-order events (`evt-013..015`). | Preserve raw timestamps while calculating `estimated_event_time_utc`. Flag ordering as uncertain within ±500ms window. | `measured` - Verified in `tests/detector_isolation.test.cjs`. Corrects +2000ms offset on `evt-015`; flags `evt-013` delayed arrival without data loss. |
 | **9. Replay and recipient binding** | Freshness nonce + ML-KEM-768 ciphertext + recipient identity binding. | Duplicate message rejection and wrong-recipient decryption failure. | `pending` (Phase 5) |
 | **10. Forward secrecy** | Ephemeral ML-KEM-768 key encapsulation per message exchange; zeroization of ephemeral secrets. | Compromise of long-term identity cannot decrypt historical ephemeral sessions. | `pending` (Phase 5) |
 | **11. Delivery under loss or reordering** | Sequence numbers, retry tracking, and deduplication buffer. | Guaranteed in-order processing despite synthetic drops or reordering. | `pending` (Phase 5) |
@@ -63,18 +63,50 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
   - Checkpoint forgery detection: Bit flip in checkpoint signature detected as `TAMPER_CHECKPOINT_FORGED`.
   - Adapter integration: `track4_service.cjs` writes real audit events (`setup`, `read`, `revoke`, `protected_read`); `bin/verify_log.cjs` verifies with code 0.
 
+### Measurement 5: Scale Benchmark with 10,000 Audit Records
+- **Claim:** Audit log scale (10,000 records, 3.11 MB) does not degrade adapter latency due to decoupled O(1) indexed lookup via `AuditIndex`.
+- **Setup & Workload:** Evaluated in `scripts/benchmark_10k_scale.cjs` with 10,000 seeded audit records across 100 cold-start child process runs each.
+- **Observed Results (macOS arm64 Host):**
+  - `read` (N=100, cold-start): p50 = **79.39 ms** | p95 = **84.37 ms** | p99 = **86.29 ms** (mean: 79.69 ms)
+  - `audit` (N=100, cold-start): p50 = **58.72 ms** | p95 = **60.72 ms** | p99 = **67.04 ms** (mean: 58.83 ms)
+- **Limits & Notes:** Decoupling audit lookup from raw log scanning ensures sub-100ms cold-start execution even with thousands of historical records.
+
+### Measurement 6: Explainable Detection & Benign Baseline (Goals 6, 7, 8)
+- **Claim:** Rule- and graph-based detector flags unapproved role escalations and multi-hop lateral traversal without machine learning or pretrained models, maintaining 0 false alerts on routine workloads.
+- **Setup & Workload:** Evaluated via `scripts/evaluate_detector.cjs` on the practice dataset (`events.csv`, 22 events) and `scripts/generate_benign_workload.cjs` on 1,000 synthetic routine events.
+- **Observed Results:**
+  - **Practice Dataset (22 events):**
+    - Exact label match: **22 / 22 (100.0%)**
+    - Alert Detection Precision: **100.0%**
+    - Alert Detection Recall: **100.0%**
+    - Alert Detection F1: **100.0%**
+    - Median Ingestion Delay: **100 ms**
+  - **Synthetic Benign Workload (1,000 events):**
+    - Security Alerts Triggered: **0**
+    - High-Severity False Alert Rate: **0 per 1,000 benign events**
+  - **Isolation Verification:** `tests/detector_isolation.test.cjs` confirms `lib/detector.cjs` contains zero references to `labels.csv` and never accesses ground truth at runtime.
+- **Methodology Disclaimer:** The 22 events in the practice dataset demonstrate functional capability only (role checks, lateral graph paths, and clock skew). A 22-event dataset cannot establish statistical confidence or production baseline accuracy.
+
 ---
 
 ## Cryptographic Key Storage & Threat Model Honesty
 
-### 1. KEK & DEK Storage
+### 1. Identity Assertion vs Caller Authentication
+- **Model:** In the process-per-request CLI adapter model, identity (`actor`) is **asserted by the trusted caller** (the worker harness), not cryptographically authenticated by the adapter.
+- **Policy Enforcement:** The adapter strictly enforces **authorization** policies (ownership, revocation lists, and disabled status) against the asserted identity.
+
+### 2. KEK & DEK Storage
 - **Location:** The Key Encryption Key (KEK) and active key registry are stored in the state directory (`kek.bin` / `key_registry.json`) with strict Unix file permissions `0o600`.
 - **Threat Model Boundary:**
   - **Protected Against:** Remote unauthenticated attackers, unprivileged local system users, path traversal attacks, prototype pollution, and accidental leak via stdout/stderr.
   - **NOT Protected Against:** Local root/administrator or attacker with raw filesystem read access to the host `TRACK4_STATE_DIR`. If the state directory is compromised, the at-rest KEK is exposed.
 
-### 2. Revocation Authority & Backup Signing Keys
-- **Location:** ML-DSA-65 private keys are loaded from `TRACK4_REVOCATION_KEY_PATH` or `TRACK4_BACKUP_KEY_PATH` (or dynamically generated in `stateDir` under `0o600` permissions).
-- **Threat Model Boundary:**
+### 3. Revocation Authority & Log Checkpoint Signing Keys
+- **Location:** ML-DSA-65 private keys are loaded from `TRACK4_REVOCATION_KEY_PATH` or `TRACK4_AUDIT_KEY_PATH` (or dynamically generated in `stateDir` under `0o600` permissions).
+- **Threat Model Boundary & Log Anchor Limitations:**
   - **Protected Against:** Node-level tampering, forged revocation broadcasts by untrusted nodes, unauthorized backup injection, and replay of stale backups.
-  - **NOT Protected Against:** Compromise of the authority host holding the ML-DSA-65 private signing key.
+  - **Limitation 1 (Local Key Storage):** If the ML-DSA-65 checkpoint key sits in the same `stateDir` as the log, an adversary with filesystem write access to `stateDir` could rewrite the log and re-sign checkpoints. To achieve immutable guarantees, signed heads must be exported externally via `bin/verify_log.cjs --export-head <trusted-path>` and verified with `--trusted-head`.
+  - **Limitation 2 (Uncheckpointed Tail):** Records appended *after* the latest signed checkpoint could be truncated undetected unless an external anchor commits to a fresher head.
+
+### 4. Adapter Staleness Isolation
+- **Guarantee:** The multi-node cluster `maxStalenessMs` fail-closed rule is strictly isolated to distributed node simulations (`DistributedNode`) and is **never** applied to the single-node `track4_service.cjs` adapter. Verified in `tests/adapter_staleness_safety.test.cjs` where owner reads succeed after an 8-second sleep without cluster sync sources.

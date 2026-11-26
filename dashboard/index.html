@@ -9,22 +9,20 @@
       --font-stack: -apple-system, "SF Pro Display", "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       
-      /* Colors */
-      --text-main: #1b1b1b;
-      --text-muted: #555e68;
-      --text-subtle: #768390;
+      --text-main: #14171a;
+      --text-muted: #4b5563;
+      --text-subtle: #6b7280;
       
       --olive-dark: #3F5A12;
       --olive-mid: #4F7A1A;
       --olive-light: #659b22;
+      --olive-tint: #f0f7e6;
       
-      /* Glassmorphism */
-      --glass-bg: rgba(255, 255, 255, 0.72);
-      --glass-border: rgba(255, 255, 255, 0.85);
-      --glass-shadow: 0 10px 32px rgba(31, 38, 135, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+      --glass-bg: rgba(255, 255, 255, 0.78);
+      --glass-border: rgba(255, 255, 255, 0.9);
+      --glass-shadow: 0 12px 36px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
       --glass-radius: 22px;
       
-      /* Pastel status chips */
       --chip-green-bg: #dcfce7;
       --chip-green-text: #166534;
       --chip-green-border: #bbf7d0;
@@ -51,40 +49,61 @@
     body {
       font-family: var(--font-stack);
       color: var(--text-main);
-      background-color: #f7f9fa;
+      background-color: #f5f7f8;
       min-height: 100vh;
       overflow-x: hidden;
       position: relative;
     }
 
-    /* Full-bleed background layer */
-    .bg-landscape {
+    /* Fixed Landscape Visual Layer */
+    .bg-landscape-container {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
       z-index: -2;
-      background-image: 
-        linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.5) 40%, rgba(255, 255, 255, 0.1) 70%, rgba(255, 255, 255, 0) 100%),
-        url('/assets/landscape.webp');
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    /* Primary image background with fallback styling */
+    .bg-landscape-img {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 65%;
+      background-image: url('/assets/landscape.png'), url('/assets/landscape.webp');
       background-position: center bottom;
       background-size: cover;
       background-repeat: no-repeat;
+      opacity: 0.92;
     }
 
-    /* Fallback soft sky gradient if image doesn't load */
-    .bg-fallback {
+    /* Beautiful Inline Anime Landscape SVG as resilient standalone/fallback artwork */
+    .bg-landscape-svg {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 62%;
+      z-index: -1;
+      display: block;
+    }
+
+    /* Sky gradient that keeps top 45% clean for text readability */
+    .bg-sky-gradient {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
       z-index: -3;
-      background: linear-gradient(180deg, #f3f6fc 0%, #e8edf7 45%, #ffdce5 75%, #d5e8d4 100%);
+      background: linear-gradient(180deg, #ffffff 0%, #f6f8fc 30%, #fef3f7 65%, #edf7ed 100%);
     }
 
-    /* Storm dusky overlay for DEMO MOMENT */
+    /* Dusky Storm Overlay for DEMO MOMENT */
     .storm-overlay {
       position: fixed;
       top: 0;
@@ -92,7 +111,7 @@
       width: 100vw;
       height: 100vh;
       z-index: -1;
-      background: linear-gradient(180deg, rgba(30, 27, 45, 0.65) 0%, rgba(55, 48, 77, 0.75) 50%, rgba(35, 30, 48, 0.85) 100%);
+      background: linear-gradient(180deg, rgba(35, 30, 50, 0.72) 0%, rgba(60, 50, 80, 0.8) 50%, rgba(40, 32, 55, 0.88) 100%);
       opacity: 0;
       pointer-events: none;
       transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -101,43 +120,83 @@
       opacity: 1;
     }
     body.storm-active .petal {
-      animation-play-state: paused;
-      opacity: 0;
+      animation-play-state: paused !important;
+      opacity: 0 !important;
       transition: opacity 0.8s ease;
     }
 
-    /* Floating Navigation Pill */
-    .nav-container {
+    /* Drifting Cherry Blossom Petals */
+    .petals-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    .petal {
+      position: absolute;
+      background: linear-gradient(135deg, #ffd1dc 0%, #ffb7c5 100%);
+      border-radius: 150% 0 150% 0;
+      opacity: 0.85;
+      filter: drop-shadow(0 2px 4px rgba(255, 182, 193, 0.45));
+      animation: driftPetal linear infinite;
+    }
+
+    @keyframes driftPetal {
+      0% {
+        transform: translate3d(0, -10vh, 0) rotate(0deg);
+        opacity: 0;
+      }
+      10% { opacity: 0.9; }
+      90% { opacity: 0.9; }
+      100% {
+        transform: translate3d(14vw, 105vh, 0) rotate(720deg);
+        opacity: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .petal { display: none !important; }
+      .storm-overlay { transition: none !important; }
+      * { scroll-behavior: auto !important; }
+    }
+
+    /* Scroll-aware Hide/Show Header */
+    .nav-wrapper {
       position: sticky;
       top: 1.25rem;
       z-index: 100;
       display: flex;
       justify-content: center;
       padding: 0 1.5rem;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav-wrapper.nav-hidden {
+      transform: translateY(-130%);
     }
 
     .nav-pill {
-      background: rgba(255, 255, 255, 0.94);
+      background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(18px);
-      border: 1px solid rgba(255, 255, 255, 0.9);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.95);
       border-radius: 999px;
       padding: 0.55rem 1.4rem;
       display: flex;
       align-items: center;
-      gap: 2.5rem;
-      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .nav-pill:hover {
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      gap: 2rem;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
     }
 
     .nav-brand {
       display: flex;
       align-items: center;
       gap: 0.65rem;
-      text-decoration: none;
       color: var(--text-main);
       font-weight: 700;
       font-size: 1.05rem;
@@ -157,15 +216,24 @@
       font-weight: 900;
     }
 
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
     .nav-btn-olive {
       background: var(--olive-dark);
       color: #ffffff;
       border: none;
       border-radius: 999px;
-      padding: 0.5rem 1.25rem;
+      padding: 0.52rem 1.35rem;
       font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
       box-shadow: 0 2px 8px rgba(63, 90, 18, 0.25);
       transition: all 0.2s ease;
     }
@@ -173,7 +241,6 @@
     .nav-btn-olive:hover {
       background: var(--olive-mid);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(63, 90, 18, 0.35);
     }
 
     .nav-btn-olive:focus-visible {
@@ -181,49 +248,10 @@
       outline-offset: 2px;
     }
 
-    /* Drifting Cherry Blossom Petals */
-    .petals-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      pointer-events: none;
-      z-index: 10;
-      overflow: hidden;
-    }
-
-    .petal {
-      position: absolute;
-      background: linear-gradient(135deg, #ffd1dc 0%, #ffb7c5 100%);
-      border-radius: 150% 0 150% 0;
-      opacity: 0.8;
-      filter: drop-shadow(0 2px 4px rgba(255, 182, 193, 0.4));
-      animation: driftPetal linear infinite;
-    }
-
-    @keyframes driftPetal {
-      0% {
-        transform: translate3d(0, -10vh, 0) rotate(0deg);
-        opacity: 0;
-      }
-      10% { opacity: 0.85; }
-      90% { opacity: 0.85; }
-      100% {
-        transform: translate3d(15vw, 105vh, 0) rotate(720deg);
-        opacity: 0;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .petal { display: none !important; }
-      .storm-overlay { transition: none !important; }
-    }
-
     /* Hero Section */
     .hero {
       text-align: center;
-      padding: 3.5rem 1.5rem 2.5rem;
+      padding: 3rem 1.5rem 1.75rem;
       position: relative;
       max-width: 900px;
       margin: 0 auto;
@@ -234,8 +262,8 @@
       font-weight: 700;
       line-height: 1.1;
       letter-spacing: -0.035em;
-      color: #121516;
-      margin-bottom: 0.85rem;
+      color: #111417;
+      margin-bottom: 0.75rem;
     }
 
     .hero-title .verify-word {
@@ -253,8 +281,83 @@
 
     .hero-birds {
       display: inline-block;
-      margin-bottom: 0.5rem;
-      opacity: 0.7;
+      margin-bottom: 0.4rem;
+      opacity: 0.75;
+    }
+
+    /* "How this demo works" Guided Strip */
+    .how-it-works-strip {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+      max-width: 1040px;
+      margin: 0 auto 2.5rem;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      position: relative;
+      z-index: 30;
+    }
+
+    @media (max-width: 900px) {
+      .how-it-works-strip {
+        flex-direction: column;
+        text-align: center;
+        gap: 1.25rem;
+      }
+    }
+
+    .strip-steps {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .strip-step-item {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .strip-step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--olive-tint);
+      color: var(--olive-dark);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .btn-start-demo {
+      background: var(--olive-dark);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 0.75rem 2rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(63, 90, 18, 0.3);
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .btn-start-demo:hover {
+      background: var(--olive-mid);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(63, 90, 18, 0.4);
     }
 
     /* Main Container & Cards Layout */
@@ -269,20 +372,31 @@
       z-index: 20;
     }
 
-    /* Frosted-glass Card Base */
+    /* Inactive State for Cards on Initial Load */
+    .cards-inactive .glass-card:not(#card-story) {
+      opacity: 0.65;
+      filter: grayscale(15%);
+      transition: opacity 0.5s ease, filter 0.5s ease;
+    }
+
+    /* Smooth Scroll Margin for Sticky Header Safety */
     .glass-card {
+      scroll-margin-top: 110px;
       background: var(--glass-bg);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       border: 1px solid var(--glass-border);
       border-radius: var(--glass-radius);
       box-shadow: var(--glass-shadow);
       padding: 1.75rem 2rem;
-      transition: box-shadow 0.25s ease, transform 0.25s ease;
+      transition: box-shadow 0.4s ease, border-color 0.4s ease, transform 0.4s ease;
     }
 
-    .glass-card:hover {
-      box-shadow: 0 14px 40px rgba(31, 38, 135, 0.09);
+    /* Soft Glow on Step Change */
+    .card-highlight {
+      box-shadow: 0 0 30px rgba(79, 122, 26, 0.42), 0 10px 32px rgba(15, 23, 42, 0.08) !important;
+      border-color: #4F7A1A !important;
+      transform: translateY(-2px);
     }
 
     .card-header {
@@ -291,14 +405,14 @@
       align-items: center;
       margin-bottom: 1.25rem;
       padding-bottom: 0.75rem;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     }
 
     .card-title {
       font-size: 1.25rem;
       font-weight: 700;
       letter-spacing: -0.02em;
-      color: #15181a;
+      color: #111827;
       display: flex;
       align-items: center;
       gap: 0.65rem;
@@ -310,7 +424,7 @@
       justify-content: center;
       width: 26px;
       height: 26px;
-      background: #edf3e4;
+      background: var(--olive-tint);
       color: var(--olive-dark);
       font-size: 0.85rem;
       font-weight: 700;
@@ -359,10 +473,9 @@
       background: var(--chip-slate-bg);
       color: var(--chip-slate-text);
       border: 1px solid var(--chip-slate-border);
-      font-size: 0.72rem;
     }
 
-    /* Card 1: Demo Story */
+    /* Card 1: Demo Story Controls & 3-Part Narration Box */
     .story-controls {
       display: flex;
       flex-wrap: wrap;
@@ -390,10 +503,10 @@
     }
 
     .step-pill.active {
-      background: #e8f2d5;
+      background: var(--olive-tint);
       color: var(--olive-dark);
-      border-color: #bcd98c;
-      box-shadow: 0 2px 8px rgba(79, 122, 26, 0.15);
+      border-color: #b5d588;
+      box-shadow: 0 2px 8px rgba(79, 122, 26, 0.18);
     }
 
     .story-btn-row {
@@ -433,22 +546,45 @@
     }
 
     .btn-action-white:hover {
-      background: #f7f9fa;
+      background: #f8fafc;
       border-color: rgba(0, 0, 0, 0.2);
     }
 
-    .narration-box {
-      background: rgba(255, 255, 255, 0.8);
-      border: 1px solid rgba(0, 0, 0, 0.06);
-      border-left: 4px solid var(--olive-mid);
-      border-radius: 12px;
-      padding: 1rem 1.25rem;
-      font-size: 0.96rem;
-      line-height: 1.55;
-      color: #272f36;
+    /* Structured 3-Part Narration Card */
+    .narration-card {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-left: 5px solid var(--olive-mid);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
     }
 
-    /* Card 2: Access Status */
+    .narration-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .narration-label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .label-what { background: #e0f2fe; color: #0369a1; }
+    .label-why { background: #fef3c7; color: #92400e; }
+    .label-result { background: #dcfce7; color: #166534; }
+
+    /* Tables & Grids */
     .grid-2col {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -481,19 +617,24 @@
       color: var(--text-main);
     }
 
-    .status-table tr:last-child td {
-      border-bottom: none;
-    }
-
-    /* Card 3: Live Decisions Table */
     .table-container {
       overflow-x: auto;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.75);
+      background: rgba(255, 255, 255, 0.8);
       border: 1px solid rgba(0, 0, 0, 0.05);
     }
 
-    /* Card 4: Revocation Across Nodes */
+    .empty-state-notice {
+      text-align: center;
+      padding: 2.25rem 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 12px;
+      border: 1px dashed rgba(0, 0, 0, 0.12);
+    }
+
+    /* Card 4: Nodes */
     .nodes-container {
       display: flex;
       flex-direction: column;
@@ -511,7 +652,7 @@
     }
 
     .node-box {
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.9);
       border: 1px solid rgba(0, 0, 0, 0.06);
       border-radius: 16px;
       padding: 1.1rem;
@@ -524,24 +665,24 @@
     }
 
     .node-indicator {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border-radius: 999px;
       background: #cbd5e1;
-      transition: all 0.4s ease;
+      transition: all 0.5s ease;
     }
 
     .node-indicator.enforced {
       background: #22c55e;
-      box-shadow: 0 0 10px rgba(34, 197, 94, 0.45);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
     }
 
     .propagation-banner {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: #f7faef;
-      border: 1px solid #d4e8af;
+      background: var(--olive-tint);
+      border: 1px solid #c9e09d;
       padding: 0.85rem 1.25rem;
       border-radius: 12px;
       font-size: 0.92rem;
@@ -550,9 +691,9 @@
     /* Card 5: Service Graph */
     .graph-card-wrapper {
       position: relative;
-      background: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.92);
       border-radius: 16px;
-      border: 1px solid rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(0, 0, 0, 0.06);
       padding: 1rem;
     }
 
@@ -563,68 +704,94 @@
     }
 
     @keyframes pulseThreatPath {
-      0% { stroke-opacity: 0.45; stroke-width: 3px; }
-      50% { stroke-opacity: 1; stroke-width: 4.5px; }
-      100% { stroke-opacity: 0.45; stroke-width: 3px; }
+      0% { stroke-opacity: 0.45; stroke-width: 3.5px; }
+      50% { stroke-opacity: 1; stroke-width: 5.5px; }
+      100% { stroke-opacity: 0.45; stroke-width: 3.5px; }
     }
 
     .threat-edge {
       stroke: #e11d48;
-      stroke-width: 3.5px;
+      stroke-width: 4px;
       stroke-dasharray: 6 3;
-      animation: pulseThreatPath 1.6s ease-in-out infinite;
+      animation: pulseThreatPath 1.4s ease-in-out infinite;
     }
 
-    /* Card 6: Key Lifecycle and Log Integrity */
-    .integrity-container {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 1.5rem;
-      align-items: center;
-    }
-
-    @media (max-width: 800px) {
-      .integrity-container { grid-template-columns: 1fr; }
-    }
-
-    .integrity-badge-box {
-      background: rgba(255, 255, 255, 0.85);
-      border-radius: 18px;
-      padding: 1.75rem;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.65rem;
+    /* Card 6: Key Lifecycle, Backup & Log Chain Blocks */
+    .key-timeline-box {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 14px;
+      padding: 1.15rem;
       border: 1px solid rgba(0, 0, 0, 0.06);
+      margin-bottom: 1.25rem;
     }
 
-    .big-badge {
-      font-size: 1.8rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-      padding: 0.5rem 1.8rem;
+    .progress-bar-track {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
       border-radius: 999px;
-      display: inline-block;
+      overflow: hidden;
+      margin-top: 0.5rem;
     }
 
-    .badge-verified {
-      background: #dcfce7;
-      color: #15803d;
-      border: 2px solid #86efac;
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #f59e0b 100%);
+      border-radius: 999px;
+      transition: width 0.6s ease;
     }
 
-    .badge-tampered {
-      background: #ffe4e6;
-      color: #b91c1c;
-      border: 2px solid #fca5a5;
-      animation: pulseBadge 1.2s ease-in-out infinite alternate;
+    /* Linked Log Hash Blocks */
+    .log-chain-wrapper {
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
     }
 
-    @keyframes pulseBadge {
-      from { box-shadow: 0 0 10px rgba(225, 29, 72, 0.3); }
-      to { box-shadow: 0 0 24px rgba(225, 29, 72, 0.6); }
+    .log-chain-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding: 0.5rem 0;
+    }
+
+    .log-block {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 0.65rem 0.85rem;
+      min-width: 130px;
+      text-align: center;
+      font-size: 0.78rem;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+      transition: all 0.3s ease;
+    }
+
+    .log-block.block-tampered {
+      background: #fff1f2;
+      border-color: #f43f5e;
+      color: #9f1239;
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
+      animation: shakeBlock 0.5s ease-in-out;
+    }
+
+    @keyframes shakeBlock {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+
+    .chain-link-arrow {
+      color: #94a3b8;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .chain-link-broken {
+      color: #e11d48;
+      font-size: 1.2rem;
+      font-weight: 800;
     }
 
     /* Card 7: Detector Alerts */
@@ -635,11 +802,11 @@
     }
 
     .alert-card {
-      background: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.94);
       border-radius: 14px;
       padding: 1.15rem 1.35rem;
       border: 1px solid rgba(0, 0, 0, 0.06);
-      border-left: 4px solid #e11d48;
+      border-left: 5px solid #e11d48;
       display: flex;
       flex-direction: column;
       gap: 0.45rem;
@@ -651,7 +818,7 @@
       align-items: center;
     }
 
-    /* Card 8: Evidence Goals */
+    /* Card 8: Evidence Grid */
     .evidence-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -659,7 +826,7 @@
     }
 
     .evidence-item {
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.88);
       border: 1px solid rgba(0, 0, 0, 0.05);
       border-radius: 14px;
       padding: 1rem 1.15rem;
@@ -690,7 +857,7 @@
 
     footer {
       text-align: center;
-      padding: 2rem 1.5rem 3.5rem;
+      padding: 2.5rem 1.5rem 3.5rem;
       color: var(--text-subtle);
       font-size: 0.85rem;
       position: relative;
@@ -698,23 +865,49 @@
     }
   </style>
 </head>
-<body>
-  <!-- Fallback layer & landscape background -->
-  <div class="bg-fallback"></div>
-  <div class="bg-landscape"></div>
+<body class="cards-inactive">
+  <!-- Sky background & resilient painterly landscape layers -->
+  <div class="bg-sky-gradient"></div>
+  <div class="bg-landscape-container">
+    <div class="bg-landscape-img"></div>
+    <!-- Layered high-fidelity Anime Landscape SVG fallback -->
+    <svg class="bg-landscape-svg" viewBox="0 0 1440 600" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Distant Lavender Mountains -->
+      <path d="M0 320 Q220 180 440 280 T880 240 T1440 300 L1440 600 L0 600 Z" fill="#cfd6eb" opacity="0.6"/>
+      <path d="M120 340 Q380 220 640 310 T1180 270 T1440 330 L1440 600 L120 600 Z" fill="#b8c2df" opacity="0.7"/>
+      <!-- Rolling Spring Green Hills -->
+      <path d="M0 400 Q260 320 560 380 T1140 360 T1440 390 L1440 600 L0 600 Z" fill="#a4ce82" opacity="0.85"/>
+      <path d="M0 460 Q340 390 720 440 T1440 430 L1440 600 L0 600 Z" fill="#8cb968" opacity="0.95"/>
+      <!-- Clear Blue River with Wooden Bridge -->
+      <path d="M520 440 Q580 490 640 600 L760 600 Q680 490 600 440 Z" fill="#67b2d6" opacity="0.8"/>
+      <rect x="560" y="490" width="70" height="12" rx="3" fill="#8d5b3a" transform="rotate(8 595 496)"/>
+      <!-- Blooming Pink Cherry Blossom Blobs -->
+      <circle cx="180" cy="420" r="50" fill="#fbb6ce" opacity="0.85"/>
+      <circle cx="230" cy="400" r="45" fill="#f687b3" opacity="0.85"/>
+      <circle cx="1320" cy="430" r="60" fill="#fbb6ce" opacity="0.85"/>
+      <circle cx="1260" cy="450" r="50" fill="#f687b3" opacity="0.85"/>
+      <!-- Village Rooftops -->
+      <polygon points="1080,430 1110,415 1140,430" fill="#4b5563"/>
+      <polygon points="1135,435 1160,422 1185,435" fill="#374151"/>
+    </svg>
+  </div>
   <div class="storm-overlay" id="storm-overlay"></div>
 
   <!-- Drifting Cherry Blossom Petals -->
   <div class="petals-container" id="petals-container" aria-hidden="true"></div>
 
-  <!-- Centered Floating Navbar Pill -->
-  <div class="nav-container">
+  <!-- Scroll-Aware Navigation Wrapper -->
+  <div class="nav-wrapper" id="main-nav-wrapper">
     <nav class="nav-pill" aria-label="Main Navigation">
       <div class="nav-brand">
         <span class="nav-logo-mark">▲</span>
         <span id="nav-brand-title">Ctrl+Alt+Delulu</span>
       </div>
-      <button class="nav-btn-olive" onclick="runNextStep()" id="nav-run-btn">Run demo</button>
+      <div class="nav-controls">
+        <button class="nav-btn-olive" onclick="toggleAutoPlayDemo()" id="nav-run-btn">
+          <span id="nav-run-icon">▶</span> <span id="nav-run-text">Run demo</span>
+        </button>
+      </div>
     </nav>
   </div>
 
@@ -731,38 +924,73 @@
     <p class="hero-subtitle">Post-quantum access control · tamper-evident audit · explainable detection</p>
   </header>
 
+  <!-- "How this demo works" Guided Strip -->
+  <section class="how-it-works-strip" aria-label="How this demo works">
+    <div class="strip-steps">
+      <div class="strip-step-item">
+        <span class="strip-step-num">1</span>
+        <span>We set up users and secret files.</span>
+      </div>
+      <div class="strip-step-item">
+        <span class="strip-step-num">2</span>
+        <span>We attack and revoke.</span>
+      </div>
+      <div class="strip-step-item">
+        <span class="strip-step-num">3</span>
+        <span>We prove nothing leaked or was tampered with.</span>
+      </div>
+    </div>
+    <button class="btn-start-demo" onclick="startDemo()" id="btn-start-demo">Start demo</button>
+  </section>
+
   <!-- Main Cards Section -->
-  <main class="main-content">
+  <main class="main-content" id="main-content">
 
     <!-- Card 1: Demo Story -->
-    <section class="glass-card" aria-labelledby="card1-heading">
+    <section class="glass-card" id="card-story" aria-labelledby="card1-heading">
       <div class="card-header">
         <h2 class="card-title" id="card1-heading"><span class="card-number">1</span> Demo Story</h2>
         <div class="story-btn-row">
-          <button class="btn-action-olive" onclick="runNextStep()">Next step</button>
+          <button class="btn-action-olive" onclick="runNextStep()" id="btn-next-step">Next step</button>
           <button class="btn-action-white" onclick="resetDemo()">Reset</button>
         </div>
       </div>
       <div class="story-controls" role="tablist">
-        <button class="step-pill active" id="tab-step-1" onclick="jumpToStep(1)">1. PQC Setup & Read</button>
+        <button class="step-pill" id="tab-step-1" onclick="jumpToStep(1)">1. PQC Setup & Read</button>
         <button class="step-pill" id="tab-step-2" onclick="jumpToStep(2)">2. Revocation Broadcast</button>
         <button class="step-pill" id="tab-step-3" onclick="jumpToStep(3)">3. Key Rotation & WAL</button>
         <button class="step-pill" id="tab-step-4" onclick="jumpToStep(4)">4. Scrypt Backup</button>
         <button class="step-pill" id="tab-step-5" onclick="jumpToStep(5)">5. Hash Log & Tamper</button>
         <button class="step-pill" id="tab-step-6" onclick="jumpToStep(6)">6. Explainable Detector</button>
       </div>
-      <div class="narration-box" id="narration-text" aria-live="polite">
-        Loading real state from local security engine...
+
+      <!-- Structured 3-Part Narration Card -->
+      <div class="narration-card" id="narration-card" aria-live="polite">
+        <div class="narration-row">
+          <span class="narration-label label-what">WHAT HAPPENED</span>
+          <span id="narrate-what">Demo is awaiting start. Click 'Start demo' to initialize cryptographic state.</span>
+        </div>
+        <div class="narration-row">
+          <span class="narration-label label-why">WHY IT MATTERS</span>
+          <span id="narrate-why">Initial state is empty until keys and identities are generated.</span>
+        </div>
+        <div class="narration-row">
+          <span class="narration-label label-result">REAL RESULT</span>
+          <span id="narrate-result" style="font-weight: 600; color: #166534;">Waiting for user action. No secrets or keys loaded yet.</span>
+        </div>
       </div>
     </section>
 
     <!-- Card 2: Access Status -->
-    <section class="glass-card" aria-labelledby="card2-heading">
+    <section class="glass-card" id="card-access" aria-labelledby="card2-heading">
       <div class="card-header">
         <h2 class="card-title" id="card2-heading"><span class="card-number">2</span> Access Status</h2>
-        <span class="chip chip-slate">Real State Lock</span>
+        <span class="chip chip-slate" id="access-lock-chip">Standby</span>
       </div>
-      <div class="grid-2col">
+      <div id="access-empty-state" class="empty-state-notice">
+        Press <strong>Start demo</strong> to initialize actors & encrypted medical assets.
+      </div>
+      <div class="grid-2col" id="access-tables-container" style="display: none;">
         <div>
           <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem;">Actors</h3>
           <table class="status-table" aria-label="Actors status">
@@ -793,12 +1021,15 @@
     </section>
 
     <!-- Card 3: Live Decisions -->
-    <section class="glass-card" aria-labelledby="card3-heading">
+    <section class="glass-card" id="card-decisions" aria-labelledby="card3-heading">
       <div class="card-header">
         <h2 class="card-title" id="card3-heading"><span class="card-number">3</span> Live Decisions</h2>
         <span class="chip chip-lilac">ML-KEM-768 Interop</span>
       </div>
-      <div class="table-container">
+      <div id="decisions-empty-state" class="empty-state-notice">
+        Press <strong>Start demo</strong> to see live decisions.
+      </div>
+      <div class="table-container" id="decisions-table-container" style="display: none;">
         <table class="status-table" aria-label="Live decision audit">
           <thead>
             <tr>
@@ -806,7 +1037,8 @@
               <th>Actor</th>
               <th>Asset</th>
               <th>Decision</th>
-              <th>Algorithm</th>
+              <th>Ciphertext Size</th>
+              <th>Proof</th>
               <th>Latency</th>
               <th>Time</th>
             </tr>
@@ -817,17 +1049,20 @@
     </section>
 
     <!-- Card 4: Revocation Across Nodes -->
-    <section class="glass-card" aria-labelledby="card4-heading">
+    <section class="glass-card" id="card-nodes" aria-labelledby="card4-heading">
       <div class="card-header">
         <h2 class="card-title" id="card4-heading"><span class="card-number">4</span> Revocation Across Nodes</h2>
         <span class="chip chip-slate">single-host simulation</span>
       </div>
-      <div class="nodes-container">
+      <div id="nodes-empty-state" class="empty-state-notice">
+        Press <strong>Start demo</strong> to view 5-node cluster.
+      </div>
+      <div class="nodes-container" id="nodes-container" style="display: none;">
         <div class="nodes-track" id="nodes-track"></div>
         <div class="propagation-banner">
           <div>
             <strong>Measured propagation to final node:</strong> 
-            <span id="propagation-time-text" style="color: var(--olive-dark); font-weight: 700;">20 ms</span>
+            <span id="propagation-time-text" style="color: var(--olive-dark); font-weight: 700;">—</span>
           </div>
           <span class="chip chip-slate">simulated 5-node cluster</span>
         </div>
@@ -835,7 +1070,7 @@
     </section>
 
     <!-- Card 5: Service Graph -->
-    <section class="glass-card" aria-labelledby="card5-heading">
+    <section class="glass-card" id="card-graph" aria-labelledby="card5-heading">
       <div class="card-header">
         <h2 class="card-title" id="card5-heading"><span class="card-number">5</span> Service Graph</h2>
         <span class="chip chip-green" id="graph-status-chip">Normal Baseline</span>
@@ -865,32 +1100,26 @@
           </g>
 
           <!-- Nodes -->
-          <!-- Portal -->
           <g transform="translate(120, 120)">
             <circle r="32" fill="#e0f2fe" stroke="#7dd3fc" stroke-width="2" />
             <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#0369a1">portal</text>
           </g>
-          <!-- Identity -->
           <g transform="translate(280, 70)">
             <circle r="32" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="2" />
             <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#6b21a8">identity</text>
           </g>
-          <!-- Catalog -->
           <g transform="translate(280, 170)">
             <circle r="32" fill="#dcfce7" stroke="#86efac" stroke-width="2" />
             <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#15803d">catalog</text>
           </g>
-          <!-- Reports -->
           <g transform="translate(480, 70)">
             <circle r="32" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2" />
             <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#334155">reports</text>
           </g>
-          <!-- Billing -->
           <g transform="translate(480, 170)">
             <circle r="32" fill="#fef3c7" stroke="#fcd34d" stroke-width="2" />
             <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#b45309">billing</text>
           </g>
-          <!-- Archive -->
           <g transform="translate(680, 120)">
             <circle r="32" fill="#ffe4e6" stroke="#fda4af" stroke-width="2" />
             <text text-anchor="middle" dy="5" font-size="12" font-weight="700" fill="#be123c">archive</text>
@@ -899,55 +1128,79 @@
       </div>
     </section>
 
-    <!-- Card 6: Key Lifecycle and Log Integrity -->
-    <section class="glass-card" aria-labelledby="card6-heading">
+    <!-- Card 6: Key Lifecycle, Backup & Log Integrity -->
+    <section class="glass-card" id="card-integrity" aria-labelledby="card6-heading">
       <div class="card-header">
         <h2 class="card-title" id="card6-heading"><span class="card-number">6</span> Key Lifecycle & Log Integrity</h2>
-        <span class="chip chip-slate">ML-DSA-65 Checkpoints</span>
+        <span class="chip chip-slate" id="integrity-header-chip">ML-DSA-65 Checkpoints</span>
       </div>
-      <div class="integrity-container">
-        <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+
+      <!-- Key Timeline & Grace Period Box -->
+      <div class="key-timeline-box" id="key-timeline-box">
+        <div style="display: flex; justify-content: space-between; font-size: 0.88rem;">
+          <div><strong>Active KEK:</strong> <span id="active-kek-text">—</span></div>
+          <div><strong>Retiring KEK:</strong> <span id="retiring-kek-text" style="color: var(--text-muted);">—</span></div>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="grace-progress-bar" style="width: 0%;"></div>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 0.35rem; display: flex; justify-content: space-between;">
+          <span>Zero-Downtime Rollover</span>
+          <span id="grace-status-text">Grace period: standby</span>
+        </div>
+      </div>
+
+      <!-- Integrity Badge & Hash Details -->
+      <div style="display: grid; grid-template-columns: 2fr 1.2fr; gap: 1.5rem; align-items: center;">
+        <div style="display: flex; flex-direction: column; gap: 0.65rem;">
           <div>
-            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Active KEK</div>
-            <div style="font-weight: 600; font-size: 1.05rem;" id="active-kek-text">KEK-v1 (AES-256-GCM)</div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Chain Head Hash</div>
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; word-break: break-all;" id="head-hash-text">—</div>
           </div>
           <div>
-            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Retiring KEK (Grace Period)</div>
-            <div style="font-weight: 600; font-size: 1.05rem; color: var(--text-muted);" id="retiring-kek-text">None</div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Last Checkpoint</div>
+            <div style="font-size: 0.9rem;" id="checkpoint-text">—</div>
           </div>
-          <div>
-            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Chain Head Hash</div>
-            <div style="font-family: var(--font-mono); font-size: 0.85rem; word-break: break-all;" id="head-hash-text">sha256:...</div>
-          </div>
-          <div>
-            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-subtle); font-weight: 700;">Last Checkpoint</div>
-            <div style="font-size: 0.92rem;" id="checkpoint-text">chkpt-001 @ seq:1</div>
+          <div id="backup-summary-box" style="display: none; font-size: 0.82rem; background: rgba(255,255,255,0.7); padding: 0.6rem; border-radius: 8px;">
+            <div><strong>Backup KDF:</strong> <span id="bk-kdf">—</span></div>
+            <div><strong>Tamper Check:</strong> <span id="bk-tamper" class="chip chip-rose" style="font-size:0.7rem;">—</span></div>
           </div>
         </div>
 
-        <div class="integrity-badge-box">
-          <div style="font-size: 0.82rem; text-transform: uppercase; font-weight: 700; color: var(--text-subtle);">Log Integrity Status</div>
-          <div class="big-badge badge-verified" id="big-integrity-badge">VERIFIED</div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);" id="integrity-subtext">All canonical SHA-256 links intact</div>
+        <div style="background: rgba(255, 255, 255, 0.9); border-radius: 18px; padding: 1.5rem; text-align: center; border: 1px solid rgba(0,0,0,0.06);">
+          <div style="font-size: 0.78rem; text-transform: uppercase; font-weight: 700; color: var(--text-subtle); margin-bottom: 0.5rem;">Audit Status</div>
+          <!-- Honest Initial State: No log yet (grey) -->
+          <div class="chip chip-slate" id="big-integrity-badge" style="font-size: 1.3rem; padding: 0.5rem 1.4rem;">No log yet</div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem;" id="integrity-subtext">Click 'Start demo' to initialize</div>
         </div>
+      </div>
+
+      <!-- Linked Log Hash Blocks -->
+      <div class="log-chain-wrapper">
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.6rem;">
+          Recent Hash Chain Blocks
+        </div>
+        <div id="chain-empty-state" style="font-size: 0.82rem; color: var(--text-subtle);">
+          No audit blocks committed yet.
+        </div>
+        <div class="log-chain-row" id="log-chain-row" style="display: none;"></div>
       </div>
     </section>
 
     <!-- Card 7: Detector Alerts -->
-    <section class="glass-card" aria-labelledby="card7-heading">
+    <section class="glass-card" id="card-alerts" aria-labelledby="card7-heading">
       <div class="card-header">
         <h2 class="card-title" id="card7-heading"><span class="card-number">7</span> Detector Alerts</h2>
-        <span class="chip chip-amber" id="alerts-count-chip">0 Active Alerts</span>
+        <span class="chip chip-slate" id="alerts-count-chip">Standby</span>
       </div>
-      <div class="alerts-container" id="alerts-container">
-        <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
-          No unapproved role changes or lateral movement chains detected.
-        </div>
+      <div id="alerts-empty-state" class="empty-state-notice">
+        Press <strong>Start demo</strong> to activate anomaly detection.
       </div>
+      <div class="alerts-container" id="alerts-container" style="display: none;"></div>
     </section>
 
     <!-- Card 8: Evidence Matrix -->
-    <section class="glass-card" aria-labelledby="card8-heading">
+    <section class="glass-card" id="card-evidence" aria-labelledby="card8-heading">
       <div class="card-header">
         <h2 class="card-title" id="card8-heading"><span class="card-number">8</span> Evidence & Verification</h2>
         <span class="chip chip-green">Goals 1–8 Measured</span>
@@ -975,11 +1228,26 @@
   </footer>
 
   <script>
-    // Central branding constant
     const BRAND_NAME = "Ctrl+Alt+Delulu";
     const BRAND_SUBTITLE = "Trust, but verify";
 
-    // Petals Generator
+    let isAutoPlaying = false;
+    let autoPlayTimer = null;
+    let lastScrollY = window.scrollY;
+
+    // Scroll-Aware Header (Hides on scroll down, shows on scroll up)
+    window.addEventListener('scroll', () => {
+      const navWrapper = document.getElementById('main-nav-wrapper');
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > 150 && currentScrollY > lastScrollY) {
+        navWrapper.classList.add('nav-hidden');
+      } else {
+        navWrapper.classList.remove('nav-hidden');
+      }
+      lastScrollY = currentScrollY;
+    }, { passive: true });
+
+    // Drifting Petals Generator
     function initPetals() {
       const container = document.getElementById('petals-container');
       const count = 18;
@@ -990,15 +1258,37 @@
         petal.style.width = size + 'px';
         petal.style.height = (size * 1.3) + 'px';
         petal.style.left = (Math.random() * 100) + 'vw';
-        petal.style.animationDuration = (Math.random() * 8 + 9) + 's';
-        petal.style.animationDelay = (Math.random() * 10) + 's';
+        petal.style.animationDuration = (Math.random() * 8 + 8) + 's';
+        petal.style.animationDelay = (Math.random() * 8) + 's';
         container.appendChild(petal);
+      }
+    }
+
+    // Highlight a specific card and smooth scroll to it
+    function highlightCard(cardId) {
+      document.querySelectorAll('.glass-card').forEach(c => c.classList.remove('card-highlight'));
+      const target = document.getElementById(cardId);
+      if (target) {
+        target.classList.add('card-highlight');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => target.classList.remove('card-highlight'), 2600);
       }
     }
 
     // Render snapshot data into UI
     function renderState(data) {
       if (!data) return;
+
+      const isInit = data.is_initialized;
+      if (isInit) {
+        document.body.classList.remove('cards-inactive');
+        document.getElementById('btn-start-demo').textContent = 'Demo Active';
+        document.getElementById('btn-start-demo').style.background = 'var(--olive-mid)';
+      } else {
+        document.body.classList.add('cards-inactive');
+        document.getElementById('btn-start-demo').textContent = 'Start demo';
+        document.getElementById('btn-start-demo').style.background = 'var(--olive-dark)';
+      }
 
       // Storm mode toggle for DEMO MOMENT
       if (data.storm_active) {
@@ -1007,154 +1297,256 @@
         document.body.classList.remove('storm-active');
       }
 
-      // Step narration
-      document.getElementById('narration-text').textContent = data.step_narration || "Ready.";
+      // 3-Part Narration Card
+      if (data.step_narration) {
+        document.getElementById('narrate-what').textContent = data.step_narration.what || "—";
+        document.getElementById('narrate-why').textContent = data.step_narration.why || "—";
+        document.getElementById('narrate-result').textContent = data.step_narration.real_result || "—";
+      }
 
       // Step pill tabs
       for (let i = 1; i <= 6; i++) {
         const pill = document.getElementById(`tab-step-${i}`);
         if (pill) {
-          if (i === data.current_step) {
-            pill.className = 'step-pill active';
-          } else {
-            pill.className = 'step-pill';
-          }
+          pill.className = (i === data.current_step) ? 'step-pill active' : 'step-pill';
         }
       }
 
-      // Actors Table
-      const actorsBody = document.getElementById('actors-table-body');
-      actorsBody.innerHTML = '';
-      (data.actors || []).forEach(a => {
-        let chipClass = 'chip-green';
-        if (a.status === 'revoked') chipClass = 'chip-rose';
-        if (a.status === 'disabled') chipClass = 'chip-slate';
+      // Card 2: Actors & Assets
+      const accessEmpty = document.getElementById('access-empty-state');
+      const accessTables = document.getElementById('access-tables-container');
+      const accessLockChip = document.getElementById('access-lock-chip');
+      if (isInit && data.actors && data.actors.length > 0) {
+        accessEmpty.style.display = 'none';
+        accessTables.style.display = 'grid';
+        accessLockChip.textContent = 'Active Lock';
+        accessLockChip.className = 'chip chip-green';
 
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><strong>${a.id}</strong></td>
-          <td>${a.role}</td>
-          <td><span class="chip ${chipClass}">${a.status}</span></td>
-        `;
-        actorsBody.appendChild(tr);
-      });
+        const actorsBody = document.getElementById('actors-table-body');
+        actorsBody.innerHTML = '';
+        data.actors.forEach(a => {
+          let chipClass = 'chip-green';
+          if (a.status === 'revoked') chipClass = 'chip-rose';
+          if (a.status === 'disabled') chipClass = 'chip-slate';
 
-      // Assets Table
-      const assetsBody = document.getElementById('assets-table-body');
-      assetsBody.innerHTML = '';
-      (data.assets || []).forEach(as => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><strong>${as.id}</strong></td>
-          <td>${as.owner}</td>
-          <td><span class="chip chip-lilac">${as.cipher}</span></td>
-        `;
-        assetsBody.appendChild(tr);
-      });
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${a.id}</strong></td>
+            <td>${a.role}</td>
+            <td><span class="chip ${chipClass}">${a.status}</span></td>
+          `;
+          actorsBody.appendChild(tr);
+        });
 
-      // Decisions Table
-      const decBody = document.getElementById('decisions-table-body');
-      decBody.innerHTML = '';
-      (data.live_decisions || []).forEach(d => {
-        const chipClass = d.decision === 'allow' ? 'chip-green' : 'chip-rose';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><span style="font-family: var(--font-mono); font-size: 0.8rem;">${d.request_id}</span></td>
-          <td>${d.actor}</td>
-          <td>${d.asset}</td>
-          <td><span class="chip ${chipClass}">${d.decision}</span></td>
-          <td>${d.algorithm}</td>
-          <td>${d.latency_ms} ms</td>
-          <td><small>${d.time}</small></td>
-        `;
-        decBody.appendChild(tr);
-      });
+        const assetsBody = document.getElementById('assets-table-body');
+        assetsBody.innerHTML = '';
+        data.assets.forEach(as => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${as.id}</strong></td>
+            <td>${as.owner}</td>
+            <td><span class="chip chip-lilac">${as.cipher}</span></td>
+          `;
+          assetsBody.appendChild(tr);
+        });
+      } else {
+        accessEmpty.style.display = 'block';
+        accessTables.style.display = 'none';
+        accessLockChip.textContent = 'Standby';
+        accessLockChip.className = 'chip chip-slate';
+      }
 
-      // Node Track
-      const nodesTrack = document.getElementById('nodes-track');
-      nodesTrack.innerHTML = '';
-      (data.nodes || []).forEach(n => {
-        const div = document.createElement('div');
-        div.className = 'node-box';
-        const indClass = n.status === 'enforced' ? 'node-indicator enforced' : 'node-indicator';
-        div.innerHTML = `
-          <div class="${indClass}"></div>
-          <div style="font-weight: 700; font-size: 0.88rem;">${n.id}</div>
-          <div style="font-size: 0.75rem; color: var(--text-subtle);">${n.location}</div>
-          <span class="chip ${n.status === 'enforced' ? 'chip-green' : 'chip-slate'}">${n.status}</span>
-        `;
-        nodesTrack.appendChild(div);
-      });
-      document.getElementById('propagation-time-text').textContent = `${data.propagation_ms || 20} ms`;
+      // Card 3: Decisions
+      const decEmpty = document.getElementById('decisions-empty-state');
+      const decTable = document.getElementById('decisions-table-container');
+      if (isInit && data.live_decisions && data.live_decisions.length > 0) {
+        decEmpty.style.display = 'none';
+        decTable.style.display = 'block';
 
-      // Service Graph
+        const decBody = document.getElementById('decisions-table-body');
+        decBody.innerHTML = '';
+        data.live_decisions.forEach(d => {
+          const chipClass = d.decision === 'allow' ? 'chip-green' : 'chip-rose';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><span style="font-family: var(--font-mono); font-size: 0.8rem;">${d.request_id}</span></td>
+            <td><strong>${d.actor}</strong></td>
+            <td>${d.asset}</td>
+            <td><span class="chip ${chipClass}">${d.decision}</span></td>
+            <td><span style="font-family: var(--font-mono); font-size:0.75rem;">${d.ciphertext_len || '—'} (${d.ciphertext_trunc || ''})</span></td>
+            <td><span style="font-family: var(--font-mono); font-size:0.75rem;">${d.proof_trunc || '—'}</span></td>
+            <td>${d.latency_ms} ms</td>
+            <td><small>${d.time}</small></td>
+          `;
+          decBody.appendChild(tr);
+        });
+      } else {
+        decEmpty.style.display = 'block';
+        decTable.style.display = 'none';
+      }
+
+      // Card 4: Nodes
+      const nodesEmpty = document.getElementById('nodes-empty-state');
+      const nodesContainer = document.getElementById('nodes-container');
+      if (isInit && data.nodes && data.nodes.length > 0) {
+        nodesEmpty.style.display = 'none';
+        nodesContainer.style.display = 'flex';
+
+        const nodesTrack = document.getElementById('nodes-track');
+        nodesTrack.innerHTML = '';
+        data.nodes.forEach((n, idx) => {
+          const div = document.createElement('div');
+          div.className = 'node-box';
+          const indClass = n.status === 'enforced' ? 'node-indicator enforced' : 'node-indicator';
+          div.innerHTML = `
+            <div class="${indClass}"></div>
+            <div style="font-weight: 700; font-size: 0.88rem;">${n.id}</div>
+            <div style="font-size: 0.75rem; color: var(--text-subtle);">${n.location}</div>
+            <span class="chip ${n.status === 'enforced' ? 'chip-green' : 'chip-slate'}">
+              ${n.status === 'enforced' ? `${n.latencyMs} ms` : 'standby'}
+            </span>
+          `;
+          nodesTrack.appendChild(div);
+        });
+        document.getElementById('propagation-time-text').textContent = data.propagation_ms ? `${data.propagation_ms} ms` : '—';
+      } else {
+        nodesEmpty.style.display = 'block';
+        nodesContainer.style.display = 'none';
+      }
+
+      // Card 5: Service Graph
       const threatPathGroup = document.getElementById('threat-path-group');
       const graphStatusChip = document.getElementById('graph-status-chip');
       if (data.current_step === 6) {
         threatPathGroup.style.display = 'inline';
         graphStatusChip.className = 'chip chip-rose';
-        graphStatusChip.textContent = 'Lateral Threat Detected';
+        graphStatusChip.textContent = 'Lateral Attack Traversal';
       } else {
         threatPathGroup.style.display = 'none';
         graphStatusChip.className = 'chip chip-green';
         graphStatusChip.textContent = 'Normal Baseline';
       }
 
-      // Key Lifecycle & Integrity
-      document.getElementById('active-kek-text').textContent = data.key_lifecycle?.active_kek || 'None';
-      document.getElementById('retiring-kek-text').textContent = data.key_lifecycle?.retiring_kek || 'None';
-      document.getElementById('head-hash-text').textContent = data.log_integrity?.headHash || 'sha256:...';
-      document.getElementById('checkpoint-text').textContent = data.log_integrity?.checkpoint || 'chkpt-001';
+      // Card 6: Key Lifecycle, Backup & Integrity
+      document.getElementById('active-kek-text').textContent = data.key_lifecycle?.active_kek || '—';
+      document.getElementById('retiring-kek-text').textContent = data.key_lifecycle?.retiring_kek || '—';
+      document.getElementById('head-hash-text').textContent = data.log_integrity?.headHash || '—';
+      document.getElementById('checkpoint-text').textContent = data.log_integrity?.checkpoint || '—';
 
+      const progressFill = document.getElementById('grace-progress-bar');
+      const graceText = document.getElementById('grace-status-text');
+      if (data.key_lifecycle?.grace_period_progress) {
+        progressFill.style.width = data.key_lifecycle.grace_period_progress + '%';
+        graceText.textContent = 'Grace period: 60s active cutoff';
+      } else {
+        progressFill.style.width = '0%';
+        graceText.textContent = 'Grace period: standby';
+      }
+
+      // Backup summary in Card 6
+      const bkBox = document.getElementById('backup-summary-box');
+      if (data.backup_status) {
+        bkBox.style.display = 'block';
+        document.getElementById('bk-kdf').textContent = data.backup_status.kdf || '—';
+        document.getElementById('bk-tamper').textContent = data.backup_status.tamper_check || '—';
+      } else {
+        bkBox.style.display = 'none';
+      }
+
+      // Honest Integrity Badge
       const bigBadge = document.getElementById('big-integrity-badge');
       const integritySub = document.getElementById('integrity-subtext');
-      if (data.log_integrity?.valid === false) {
-        bigBadge.className = 'big-badge badge-tampered';
+      if (!isInit || data.log_integrity?.status === 'NO_LOG_YET') {
+        bigBadge.className = 'chip chip-slate';
+        bigBadge.textContent = 'No log yet';
+        integritySub.textContent = "Click 'Start demo' to initialize";
+      } else if (data.log_integrity?.valid === false) {
+        bigBadge.className = 'chip chip-rose';
         bigBadge.textContent = 'TAMPERED';
         integritySub.textContent = data.log_integrity?.reason || 'Hash chain corruption detected!';
       } else {
-        bigBadge.className = 'big-badge badge-verified';
+        bigBadge.className = 'chip chip-green';
         bigBadge.textContent = 'VERIFIED';
         integritySub.textContent = 'All canonical SHA-256 links intact';
       }
 
-      // Detector Alerts
+      // Hash Chain Linked Blocks
+      const chainEmpty = document.getElementById('chain-empty-state');
+      const chainRow = document.getElementById('log-chain-row');
+      const blocks = data.log_chain_blocks || [];
+      if (isInit && blocks.length > 0) {
+        chainEmpty.style.display = 'none';
+        chainRow.style.display = 'flex';
+        chainRow.innerHTML = '';
+        blocks.forEach((b, idx) => {
+          const div = document.createElement('div');
+          div.className = b.is_tampered ? 'log-block block-tampered' : 'log-block';
+          div.innerHTML = `
+            <div style="font-weight:700;">#${b.seq} ${b.action}</div>
+            <div style="color:var(--text-subtle);font-size:0.7rem;">${b.actor}</div>
+            <div style="font-family:var(--font-mono);font-size:0.7rem;margin-top:0.2rem;">H:${b.hash_short}</div>
+          `;
+          chainRow.appendChild(div);
+
+          if (idx < blocks.length - 1) {
+            const arr = document.createElement('span');
+            arr.className = b.is_tampered ? 'chain-link-broken' : 'chain-link-arrow';
+            arr.textContent = b.is_tampered ? '✕' : '➔';
+            chainRow.appendChild(arr);
+          }
+        });
+      } else {
+        chainEmpty.style.display = 'block';
+        chainRow.style.display = 'none';
+      }
+
+      // Card 7: Detector Alerts
+      const alertsEmpty = document.getElementById('alerts-empty-state');
       const alertsContainer = document.getElementById('alerts-container');
       const alertsChip = document.getElementById('alerts-count-chip');
       const alerts = data.detector_alerts || [];
-      if (alerts.length > 0) {
-        alertsChip.className = 'chip chip-rose';
-        alertsChip.textContent = `${alerts.length} Critical Alert${alerts.length > 1 ? 's' : ''}`;
-        alertsContainer.innerHTML = '';
-        alerts.forEach(al => {
-          const card = document.createElement('div');
-          card.className = 'alert-card';
-          card.innerHTML = `
-            <div class="alert-card-header">
-              <span style="font-weight: 700; color: #b91c1c;">${al.rule_id}</span>
-              <span class="chip chip-rose">${al.severity}</span>
-            </div>
-            <div style="font-size: 0.95rem; color: #1b1b1b;">${al.reason}</div>
-            <div style="font-size: 0.85rem; color: var(--text-subtle);">
-              <strong>Graph Path:</strong> <span style="font-family: var(--font-mono);">${al.graph_path}</span>
-            </div>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">
-              <strong>Events:</strong> ${al.event_ids.join(', ')}
+      if (isInit) {
+        alertsEmpty.style.display = 'none';
+        alertsContainer.style.display = 'flex';
+        if (alerts.length > 0) {
+          alertsChip.className = 'chip chip-rose';
+          alertsChip.textContent = `${alerts.length} Critical Alert${alerts.length > 1 ? 's' : ''}`;
+          alertsContainer.innerHTML = '';
+          alerts.forEach(al => {
+            const card = document.createElement('div');
+            card.className = 'alert-card';
+            card.innerHTML = `
+              <div class="alert-card-header">
+                <span style="font-weight: 700; color: #b91c1c;">${al.rule_id}</span>
+                <span class="chip chip-rose">${al.severity}</span>
+              </div>
+              <div style="font-size: 0.95rem; color: #111827;">${al.reason}</div>
+              <div style="font-size: 0.82rem; color: var(--text-subtle);">
+                <strong>Graph Path:</strong> <span style="font-family: var(--font-mono);">${al.graph_path}</span>
+              </div>
+              <div style="font-size: 0.78rem; color: var(--text-muted);">
+                <strong>Trigger Events:</strong> ${(al.event_ids || []).join(', ')}
+              </div>
+            `;
+            alertsContainer.appendChild(card);
+          });
+        } else {
+          alertsChip.className = 'chip chip-green';
+          alertsChip.textContent = '0 Alerts (Clean)';
+          alertsContainer.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+              No unapproved role changes or lateral movement chains detected.
             </div>
           `;
-          alertsContainer.appendChild(card);
-        });
+        }
       } else {
-        alertsChip.className = 'chip chip-green';
-        alertsChip.textContent = '0 Alerts (Clean)';
-        alertsContainer.innerHTML = `
-          <div style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
-            No unapproved role changes or lateral movement chains detected.
-          </div>
-        `;
+        alertsEmpty.style.display = 'block';
+        alertsContainer.style.display = 'none';
+        alertsChip.className = 'chip chip-slate';
+        alertsChip.textContent = 'Standby';
       }
 
-      // Evidence Grid
+      // Card 8: Evidence Grid
       const evGrid = document.getElementById('evidence-grid');
       evGrid.innerHTML = '';
       (data.evidence_goals || []).forEach(g => {
@@ -1172,6 +1564,19 @@
       });
     }
 
+    // Step to Card Focus Mapping for smooth visuals
+    function focusCardForStep(step) {
+      switch (step) {
+        case 1: highlightCard('card-access'); break;
+        case 2: highlightCard('card-nodes'); break;
+        case 3: highlightCard('card-integrity'); break;
+        case 4: highlightCard('card-integrity'); break;
+        case 5: highlightCard('card-integrity'); break;
+        case 6: highlightCard('card-graph'); break;
+        default: highlightCard('card-story');
+      }
+    }
+
     // API Calls
     async function fetchState() {
       try {
@@ -1183,6 +1588,10 @@
       }
     }
 
+    async function startDemo() {
+      await jumpToStep(1);
+    }
+
     async function runNextStep() {
       try {
         const res = await fetch('/api/step', {
@@ -1192,6 +1601,7 @@
         });
         const data = await res.json();
         renderState(data);
+        focusCardForStep(data.current_step);
       } catch (err) {
         console.error('Run next step error:', err);
       }
@@ -1199,28 +1609,62 @@
 
     async function jumpToStep(stepNum) {
       try {
-        const res = await fetch('/api/step', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ step: stepNum })
-        });
+        const res = await fetch(`/api/demo/step/${stepNum}`);
         const data = await res.json();
         renderState(data);
+        focusCardForStep(stepNum);
       } catch (err) {
         console.error('Jump step error:', err);
       }
     }
 
     async function resetDemo() {
+      if (isAutoPlaying) toggleAutoPlayDemo();
       try {
-        const res = await fetch('/api/reset', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
+        const res = await fetch('/api/reset', { method: 'POST' });
         const data = await res.json();
         renderState(data);
+        highlightCard('card-story');
       } catch (err) {
         console.error('Reset error:', err);
+      }
+    }
+
+    // Auto-Play 6 Steps for 5-Minute Screen Recording
+    function toggleAutoPlayDemo() {
+      const runBtn = document.getElementById('nav-run-btn');
+      const runIcon = document.getElementById('nav-run-icon');
+      const runText = document.getElementById('nav-run-text');
+
+      if (isAutoPlaying) {
+        isAutoPlaying = false;
+        clearInterval(autoPlayTimer);
+        runIcon.textContent = '▶';
+        runText.textContent = 'Run demo';
+        runBtn.style.background = 'var(--olive-dark)';
+      } else {
+        isAutoPlaying = true;
+        runIcon.textContent = '⏸';
+        runText.textContent = 'Pause demo';
+        runBtn.style.background = '#0284c7'; // Blue pause state
+
+        // Start step 1 immediately if not started
+        runNextStep();
+
+        // Advance step every 6 seconds
+        autoPlayTimer = setInterval(async () => {
+          try {
+            const statusRes = await fetch('/api/status');
+            const curState = await statusRes.json();
+            if (curState.current_step >= 6) {
+              toggleAutoPlayDemo(); // Stop after step 6 completes
+              return;
+            }
+            await runNextStep();
+          } catch (e) {
+            toggleAutoPlayDemo();
+          }
+        }, 6000);
       }
     }
 

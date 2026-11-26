@@ -1,40 +1,54 @@
 {
   "dataset": "unseen_synthetic_evaluation",
   "total_events": 582,
-  "wall_duration_ms": 15,
-  "true_positives": 34,
+  "wall_duration_ms": 3,
+  "true_positives": 66,
   "false_positives": 0,
   "true_negatives": 516,
-  "false_negatives": 32,
+  "false_negatives": 0,
   "precision": 1,
-  "recall": 0.5151515151515151,
-  "f1": 0.6799999999999999,
+  "recall": 1,
+  "f1": 1,
   "false_positive_rate": 0,
-  "median_latency_ms": 80,
+  "category_breakdown": {
+    "unapproved_role_change": {
+      "expected": 17,
+      "detected": 17
+    },
+    "out_of_scope_access": {
+      "expected": 17,
+      "detected": 17
+    },
+    "lateral_movement": {
+      "expected": 32,
+      "detected": 32
+    }
+  },
+  "median_latency_ms": 77.5,
   "p95_latency_ms": 85,
-  "cpu_user_ms": 11.117,
-  "cpu_system_ms": 4.584,
-  "heap_used_mb": 1.2585983276367188,
+  "cpu_user_ms": 4.18,
+  "cpu_system_ms": 0.638,
+  "heap_used_mb": 0.7018890380859375,
   "scaling": [
     {
       "events": 116,
-      "duration_ms": 2,
-      "events_per_sec": 58000
+      "duration_ms": 1,
+      "events_per_sec": 116000
     },
     {
       "events": 582,
-      "duration_ms": 6,
-      "events_per_sec": 97000
+      "duration_ms": 2,
+      "events_per_sec": 291000
     },
     {
       "events": 1166,
-      "duration_ms": 7,
-      "events_per_sec": 166571
+      "duration_ms": 3,
+      "events_per_sec": 388667
     },
     {
       "events": 2916,
-      "duration_ms": 33,
-      "events_per_sec": 88364
+      "duration_ms": 7,
+      "events_per_sec": 416571
     }
   ],
   "methodology": "Separated unseen synthetic evaluation with no labels in detector runtime"

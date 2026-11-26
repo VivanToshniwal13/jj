@@ -425,11 +425,11 @@ exports.dispatch = async function dispatch(request) {
   }
 
   const stateDir = getStateDir();
-  const km = new KeyLifecycleManager(stateDir);
-  const tamperLog = new TamperEvidentLog(stateDir);
-  const auditIndex = new AuditIndex(stateDir);
 
   return await withStateLock(stateDir, async () => {
+    const km = new KeyLifecycleManager(stateDir);
+    const tamperLog = new TamperEvidentLog(stateDir);
+    const auditIndex = new AuditIndex(stateDir);
     switch (op) {
       case 'setup': {
         if (!request.owners || typeof request.owners !== 'object' || Array.isArray(request.owners) ||

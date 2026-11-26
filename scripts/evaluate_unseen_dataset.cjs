@@ -200,7 +200,11 @@ function runEvaluation() {
 
   const alertMap = new Map();
   for (const a of results.alerts) {
-    alertMap.set(a.event_ids ? a.event_ids[0] : null, a);
+    if (Array.isArray(a.event_ids)) {
+      for (const id of a.event_ids) {
+        alertMap.set(id, a);
+      }
+    }
   }
 
   let tp = 0;
@@ -209,13 +213,28 @@ function runEvaluation() {
   let fn = 0;
   const latencies = [];
 
+  // Per-category attack tracking
+  const categoryStats = {
+    unapproved_role_change: { expected: 0, detected: 0 },
+    out_of_scope_access: { expected: 0, detected: 0 },
+    lateral_movement: { expected: 0, detected: 0 }
+  };
+
   for (const ev of events) {
     const truth = groundTruth.get(ev.event_id);
     const hasAlert = alertMap.has(ev.event_id);
 
     if (truth.isAttack) {
+      const catKey = truth.type.startsWith('lateral_movement') ? 'lateral_movement' : truth.type;
+      if (categoryStats[catKey]) {
+        categoryStats[catKey].expected++;
+      }
+
       if (hasAlert) {
         tp++;
+        if (categoryStats[catKey]) {
+          categoryStats[catKey].detected++;
+        }
         const estimatedEvent = new Date(ev.event_time_utc).getTime() - (ev.source_clock_offset_ms || 0);
         const recvTime = new Date(ev.received_time_utc).getTime();
         latencies.push(recvTime - estimatedEvent);
@@ -248,6 +267,16 @@ function runEvaluation() {
   console.log(`  False Negatives (FN):     ${fn}`);
   console.log(`Metrics:`);
   console.log(`  Precision:                ${(precision * 100).toFixed(1)}%`);
+  console.log(`  Recall:                   ${(recall * 100).toFixed(1)}%`);
+  console.log(`  F1 Score:                 ${(f1 * 100).toFixed(1)}%`);
+  console.log(`  False Positive Rate (FPR): ${(fpr * 100).toFixed(2)}%`);
+  console.log(`  Median Detection Latency: ${medianLatency} ms`);
+  console.log(`  p95 Detection Latency:    ${p95Latency} ms`);
+  console.log(`Per-Category Recall Breakdown:`);
+  for (const [cat, stat] of Object.entries(categoryStats)) {
+    const catRecall = stat.expected > 0 ? (stat.detected / stat.expected) * 100 : 100;
+    console.log(`  - ${cat.padEnd(26)}: ${stat.detected}/${stat.expected} (${catRecall.toFixed(1)}%)`);
+  }
   console.log(`  Recall:                   ${(recall * 100).toFixed(1)}%`);
   console.log(`  F1 Score:                 ${(f1 * 100).toFixed(1)}%`);
   console.log(`  False Positive Rate (FPR): ${(fpr * 100).toFixed(2)}%`);
@@ -295,6 +324,7 @@ function runEvaluation() {
     recall,
     f1,
     false_positive_rate: fpr,
+    category_breakdown: categoryStats,
     median_latency_ms: medianLatency,
     p95_latency_ms: p95Latency,
     cpu_user_ms: cpuDiff.user / 1000,

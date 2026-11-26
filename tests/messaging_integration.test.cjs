@@ -203,6 +203,9 @@ test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12
     const prekeyBadSig = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
     const badSigPacket = JSON.parse(JSON.stringify(sendSuccess.packet));
     badSigPacket.message_id = 'msg-badsig-001';
+    badSigPacket.sequence_number = 999;
+    badSigPacket.aad.sequence_number = 999;
+    badSigPacket.aad.message_id = 'msg-badsig-001';
     badSigPacket.signature_b64 = Buffer.from('invalidsignaturebytes').toString('base64');
     await assert.rejects(async () => {
       await dispatch({
@@ -274,7 +277,7 @@ test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12
         signatureB64: bobPrekey.signatureB64
       },
       plaintext: cliPayload,
-      options: { messageId: 'msg-cli-process-001', sequenceNumber: 1 }
+      options: { messageId: 'msg-cli-process-001', sequenceNumber: 100 }
     };
 
     const sendRes = await runServiceProcess(sendReq, testStateDir);

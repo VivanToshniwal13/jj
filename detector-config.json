@@ -8,7 +8,8 @@
     "portal->reports-node-a",
     "portal->reports-node-b",
     "admin-console->identity",
-    "reports->catalog"
+    "reports->catalog",
+    "ingress-proxy->web-tier"
   ],
   "clock_skew": {
     "skew_uncertainty_ms": 500,

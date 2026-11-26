@@ -66,7 +66,7 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
       bob.dsa.publicKey,
       bobSessionPrekey,
       'Replay test payload',
-      { messageId: 'msg-replay-001', sequenceNumber: 1 }
+      { messageId: 'msg-replay-001', sequenceNumber: 2 }
     );
 
     // First receipt succeeds
@@ -221,7 +221,7 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
     const shuffled = [...chunks].reverse();
     const reassembled = ProtectedMessagingEngine.reassembleChunks(shuffled, alice.dsa.publicKey);
 
-    const reassembledEngine = new ProtectedMessagingEngine();
+    const reassembledEngine = new ProtectedMessagingEngine(stateDir);
     const result = reassembledEngine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, reassembled);
     assert.equal(result.plaintext, longPayload);
 

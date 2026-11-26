@@ -98,6 +98,7 @@ test('Hardening 5: Concurrency & Lock Stress Testing', async () => {
     asset: 'docStatic',
     request_id: 'req-final-static'
   }, { TRACK4_STATE_DIR: testStateDir });
+  assert.equal(finalStaticRead.code, 0, `finalStaticRead failed (code ${finalStaticRead.code}): ${finalStaticRead.stderr}`);
   const staticJson = JSON.parse(finalStaticRead.stdout);
   assert.equal(staticJson.decision, 'allow');
   assert.equal(staticJson.body, 'static-data-payload');

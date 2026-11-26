@@ -1,18 +1,23 @@
 # Dockerfile matching the Track 4 judging environment
 # Linux container with Node.js 24.11.1, Python 3.12, and pqcrypto
-FROM node:24.11.1-bookworm-slim
+FROM python:3.12-slim-bookworm
 
-# Install Python 3.12 and build tools
+# Install required system libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
+    ca-certificates \
     curl \
     git \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy Node.js 24.11.1 binary and npm runtime from official Node image
+COPY --from=node:24.11.1-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:24.11.1-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
 # Install pqcrypto for interop verification
-RUN pip3 install --no-cache-dir --break-system-packages "pqcrypto>=0.4.0"
+RUN pip install --no-cache-dir --break-system-packages "pqcrypto>=0.4.0"
 
 WORKDIR /workspace
 

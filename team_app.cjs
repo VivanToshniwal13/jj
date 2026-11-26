@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const { KeyLifecycleManager } = require('./lib/key_lifecycle.cjs');
 const { TamperEvidentLog } = require('./lib/tamper_log.cjs');
 const { AuditIndex } = require('./lib/audit_index.cjs');
+const { ProtectedMessagingEngine } = require('./lib/messaging.cjs');
 
 // ML-KEM-768 SPKI DER Prefix (RFC 9629 / NIST FIPS 203)
 const ML_KEM_768_SPKI_PREFIX = Buffer.from('308204b2300b0609608648016503040402038204a100', 'hex');
@@ -672,8 +673,95 @@ exports.dispatch = async function dispatch(request) {
         return { rewrapped: true, active_version: activeKekObj.version };
       }
 
+      case 'send_protected_message': {
+        const sender = validateStringId(request.sender, 'sender');
+        const recipient = validateStringId(request.recipient, 'recipient');
+        const plaintext = request.plaintext;
+        if (typeof plaintext !== 'string') {
+          throw new Error('Invalid plaintext: string required');
+        }
+        if (!request.sender_signing_key || !request.recipient_public_key || !request.recipient_prekey) {
+          throw new Error('Missing cryptographic keys for protected send');
+        }
+
+        const senderSigningKey = typeof request.sender_signing_key === 'string'
+          ? crypto.createPrivateKey(request.sender_signing_key)
+          : request.sender_signing_key;
+
+        const recipientDsaPublicKey = typeof request.recipient_public_key === 'string'
+          ? crypto.createPublicKey(request.recipient_public_key)
+          : request.recipient_public_key;
+
+        const engine = new ProtectedMessagingEngine(stateDir);
+        const packet = engine.sendMessage(
+          sender,
+          senderSigningKey,
+          recipient,
+          recipientDsaPublicKey,
+          request.recipient_prekey,
+          plaintext,
+          request.options || {}
+        );
+        tamperLog.appendRecord(sender, 'send_protected_message', {
+          recipient,
+          message_id: packet.message_id,
+          sequence_number: packet.sequence_number
+        });
+        return { status: 'sent', packet };
+      }
+
+      case 'receive_protected_message': {
+        const recipient = validateStringId(request.recipient, 'recipient');
+        if (!request.packet || typeof request.packet !== 'object') {
+          throw new Error('Missing message packet');
+        }
+        if (!request.sender_public_key || !request.recipient_ephemeral_prekey) {
+          throw new Error('Missing cryptographic keys for protected receive');
+        }
+
+        const senderDsaPublicKey = typeof request.sender_public_key === 'string'
+          ? crypto.createPublicKey(request.sender_public_key)
+          : request.sender_public_key;
+
+        const engine = new ProtectedMessagingEngine(stateDir);
+
+        let result;
+        try {
+          result = engine.receiveMessage(
+            recipient,
+            request.recipient_ephemeral_prekey,
+            senderDsaPublicKey,
+            request.packet,
+            request.options || {}
+          );
+        } catch (err) {
+          tamperLog.appendRecord(recipient, 'receive_protected_message', {
+            error: err.message,
+            message_id: request.packet.message_id || 'unknown'
+          });
+          throw err;
+        }
+
+        tamperLog.appendRecord(recipient, 'receive_protected_message', {
+          sender: result.sender_id,
+          message_id: result.message_id,
+          sequence_number: result.sequence_number
+        });
+        return {
+          status: 'received',
+          message_id: result.message_id,
+          sequence_number: result.sequence_number,
+          sender_id: result.sender_id,
+          recipient_id: result.recipient_id,
+          plaintext: result.plaintext,
+          verified: result.verified
+        };
+      }
+
       default:
         throw new Error(`Unsupported operation: ${op}`);
     }
   });
 };
+
+exports.ProtectedMessagingEngine = ProtectedMessagingEngine;

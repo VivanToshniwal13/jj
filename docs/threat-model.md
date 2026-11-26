@@ -14,6 +14,7 @@
 | **Identity & Policy State** | Integrity & Consistency | Monotonic versioning, atomic `fsync` persistence via temporary file rename, and `O_EXCL` concurrency lock with stale-lock PID recovery. |
 | **Revocation Broadcasts** | Authenticity & Non-Repudiation | ML-DSA-65 post-quantum digital signatures over monotonic versioned lists. Replay attacks rejected. |
 | **Audit Log Records** | Tamper-Evidence & Completeness | SHA-256 canonical JSON hash chaining with periodic ML-DSA-65 signed checkpoints. |
+| **Messages in Transit** | Confidentiality, Authenticity & Forward Secrecy | Ephemeral ML-KEM-768 encapsulation, HKDF-SHA256, AES-256-GCM with full AAD recipient binding, per-sender 1,024 sliding window replay protection, and atomic concurrency locking. |
 | **Service Availability** | Availability & Resilience | Fail-closed input parsing, prototype pollution guard, bounded timeouts, and max-staleness fail-closed rules. |
 
 ---
@@ -57,6 +58,7 @@
 1. **Identity Assertion Model**: The caller (worker process) asserts `actor`. The adapter enforces authorization policies against the asserted identity; caller authentication is out of scope for the process-per-request adapter.
 2. **Vetted Cryptography**: Relies exclusively on Node.js built-in `crypto` (OpenSSL 3.5.4) implementing NIST FIPS 203 (ML-KEM-768), NIST FIPS 204 (ML-DSA-65), AES-256-GCM, and Scrypt KDF. No custom crypto primitives.
 3. **Local Clock Reference**: Collector clock is the trusted monotonic baseline. Source clock offsets are accounted for within a supported window of $\pm 5,000$ ms; uncertainties $\le 500$ ms are flagged as timing-uncertain.
+4. **Ephemeral Key Lifecycle & Memory Zeroization**: In the JavaScript V8 runtime, KeyObjects wrap OpenSSL native key structures. References are wiped immediately upon session completion to allow garbage collection and OpenSSL EVP_PKEY destruction; raw V8 heap memory zeroization cannot be directly controlled or guaranteed by JavaScript code.
 
 ---
 
@@ -67,6 +69,7 @@
 - **Crash Recovery & Lock Safety**: Atomic rename ensures crash-safe writes. `state.lock` tracks PID; dead processes release locks immediately. Verified via mid-setup and mid-revoke `SIGKILL` fault hooks.
 - **Monotonic Rollback Protection**: Restoring an older backup preserves prior revocations and advances epoch. Verified via `tests/rollback_protection.test.cjs`.
 - **Explainable Anomaly Detection**: Deterministic graph and approval rules detect unapproved role changes, lateral traversals, and out-of-scope access with 100% recall on synthetic attacks and 0 false alerts per 1,000 benign events.
+- **Protected Messaging & Replay Protection**: Per-sender 1,024 sliding window with atomic concurrency locking rejects duplicate messages; ephemeral prekeys are destroyed upon session completion across both success and error paths.
 
 ---
 
@@ -78,3 +81,9 @@
    - Records appended after the latest signed checkpoint could be truncated undetected by an attacker with local write access. To mitigate this, signed heads must be exported externally via `bin/verify_log.cjs --export-head <external-path>`.
 3. **Practice Dataset Scope**:
    - The 22 events in the practice dataset demonstrate functional capability only, not statistical accuracy. Production deployment requires organizational baseline tuning.
+4. **Unimplemented Architectural Choices (By Design)**:
+   - **SLH-DSA (FIPS 205)**: Excluded in favor of ML-DSA-65 (compact 3.3 KB signatures vs. 17+ KB).
+   - **Hybrid Classical+PQ KEM**: Excluded in favor of native NIST FIPS 203 ML-KEM-768 with AES-256-GCM envelope encryption.
+   - **Double Ratchet / PQXDH**: Excluded; we implement per-session ephemeral ML-KEM-768 + ML-DSA-65 signed prekeys + AES-256-GCM forward-secret messaging without continuous symmetric/asymmetric ratcheting.
+   - **Merkle Tree Logs**: Excluded in favor of canonical SHA-256 hash chains with periodic ML-DSA-65 checkpoints for O(1) tail verification.
+   - **Hybrid Logical Clocks (HLC)**: Excluded in favor of collector-monotonic ordering with bounded skew ($\pm 5,000$ ms) and uncertainty flagging ($\pm 500$ ms).

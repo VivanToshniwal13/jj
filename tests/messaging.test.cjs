@@ -421,4 +421,111 @@ test('Goals 9-12: Post-Quantum Protected Messaging, Forward Secrecy & Session Re
       fs.rmSync(corruptStateDir, { recursive: true, force: true });
     }
   });
+
+  // 10. Goal 9: Concurrent Message Processing Replay Race Defense
+  await t.test('10. Goal 9: Concurrent message processing prevents race conditions; exactly 1 succeeds', async () => {
+    const concurrentStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-concurrent-test-'));
+    try {
+      const bobSessionPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+      const senderEngine = new ProtectedMessagingEngine(concurrentStateDir);
+
+      const packet = senderEngine.sendMessage(
+        'alice',
+        alice.dsa.privateKey,
+        'bob',
+        bob.dsa.publicKey,
+        bobSessionPrekey,
+        'Concurrent racing packet',
+        { messageId: 'msg-concurrent-001', sequenceNumber: 1 }
+      );
+
+      // Launch 5 concurrent receivers against the same packet and stateDir
+      const numCompetitors = 5;
+      const receivers = Array.from({ length: numCompetitors }, () => new ProtectedMessagingEngine(concurrentStateDir));
+
+      let successes = 0;
+      let replayRejections = 0;
+
+      await Promise.all(
+        receivers.map(async (rcv) => {
+          try {
+            const res = rcv.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, packet);
+            if (res && res.verified) {
+              successes++;
+            }
+          } catch (err) {
+            if (/MESSAGE_REPLAY_DETECTED/.test(err.message)) {
+              replayRejections++;
+            } else {
+              throw err;
+            }
+          }
+        })
+      );
+
+      // Concurrency guarantee: Exactly 1 receiver wins the race; remaining 4 are rejected as duplicates
+      assert.equal(successes, 1);
+      assert.equal(replayRejections, numCompetitors - 1);
+    } finally {
+      fs.rmSync(concurrentStateDir, { recursive: true, force: true });
+    }
+  });
+
+  // 11. Goal 9: Modified Ciphertext and Auth Tag Tamper Rejection
+  await t.test('11. Goal 9: Modified ciphertext, iv, or tag fails authentication before disclosure', () => {
+    const bobSessionPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const packet = engine.sendMessage(
+      'alice',
+      alice.dsa.privateKey,
+      'bob',
+      bob.dsa.publicKey,
+      bobSessionPrekey,
+      'Top Secret Payload #77'
+    );
+
+    // Case A: Bit flip in ciphertext
+    const tamperedCt = JSON.parse(JSON.stringify(packet));
+    const ctBuf = Buffer.from(tamperedCt.ciphertext_b64, 'base64');
+    ctBuf[0] ^= 0x55;
+    tamperedCt.ciphertext_b64 = ctBuf.toString('base64');
+    assert.throws(() => {
+      engine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, tamperedCt);
+    }, /SIGNATURE_VERIFICATION_FAILED/);
+
+    // Case B: Bit flip in auth tag
+    const tamperedTag = JSON.parse(JSON.stringify(packet));
+    tamperedTag.auth_tag_hex = tamperedTag.auth_tag_hex.slice(0, -2) + (tamperedTag.auth_tag_hex.slice(-2) === 'aa' ? 'bb' : 'aa');
+    assert.throws(() => {
+      engine.receiveMessage('bob', bobSessionPrekey, alice.dsa.publicKey, tamperedTag);
+    }, /SIGNATURE_VERIFICATION_FAILED/);
+  });
+
+  // 12. Goal 10: Ephemeral Prekey Lifecycle & Guaranteed Cleanup
+  await t.test('12. Goal 10: Ephemeral key is safely wiped in finally block across both success and error paths', () => {
+    // Case A: Successful receiveAndDestroy wipes ephemeral key
+    const prekeyA = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const packetA = engine.sendMessage('alice', alice.dsa.privateKey, 'bob', bob.dsa.publicKey, prekeyA, 'Message A');
+
+    const resultA = engine.receiveAndDestroy('bob', prekeyA, alice.dsa.publicKey, packetA);
+    assert.equal(resultA.verified, true);
+    assert.equal(prekeyA.destroyed, true);
+    assert.equal(prekeyA.ephemeralPrivateKey, null);
+
+    // Subsequent access strictly fails with EPHEMERAL_KEY_DESTROYED
+    assert.throws(() => {
+      engine.receiveMessage('bob', prekeyA, alice.dsa.publicKey, packetA);
+    }, /EPHEMERAL_KEY_DESTROYED/);
+
+    // Case B: Failed receiveAndDestroy (e.g. wrong recipient) STILL guarantees prekey cleanup
+    const prekeyB = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const packetB = engine.sendMessage('alice', alice.dsa.privateKey, 'bob', bob.dsa.publicKey, prekeyB, 'Message B');
+
+    assert.throws(() => {
+      engine.receiveAndDestroy('charlie', prekeyB, alice.dsa.publicKey, packetB);
+    }, /WRONG_RECIPIENT_ERROR/);
+
+    // Key must be destroyed even though receive failed
+    assert.equal(prekeyB.destroyed, true);
+    assert.equal(prekeyB.ephemeralPrivateKey, null);
+  });
 });

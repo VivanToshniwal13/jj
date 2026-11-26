@@ -8,7 +8,7 @@
 **Demo entry point:** `python3 Track-4-Toolkit/validate.py --entry track4_service.cjs` & `bin/detect.cjs`
 
 ### Unique Selling Proposition (USP)
-Modern distributed infrastructures face severe risk when devices are lost or permissions unexpectedly mutate across post-quantum migration horizons. Ctrl+Alt+Delulu provides post-quantum cryptographic access control combining NIST FIPS 203 ML-KEM-768 envelope encryption and protected messaging with tamper-evident audit logging and deterministic, explainable lateral-movement detection. By enforcing immediate, monotonic revocations across distributed nodes, device re-enrolment, and crash-resilient storage without external cloud dependencies, our solution guarantees that compromised identities cannot access protected enterprise or medical assets. What distinguishes Ctrl+Alt+Delulu is its zero-runtime npm footprint, 40–60 ms cold-start execution (sub-2 ms steady-state), forward secrecy with replay defense, and explainable rule-and-graph anomaly engine that operates entirely without black-box machine learning.
+Modern distributed infrastructures face severe risk when devices are lost or permissions unexpectedly mutate across post-quantum migration horizons. Ctrl+Alt+Delulu provides post-quantum cryptographic access control combining NIST FIPS 203 ML-KEM-768 envelope encryption and protected messaging with tamper-evident audit logging and deterministic, explainable lateral-movement detection. By enforcing immediate, monotonic revocations across distributed nodes, device re-enrolment, and crash-resilient storage without external cloud dependencies, our solution enforces that compromised identities are denied access under our documented threat model. What distinguishes Ctrl+Alt+Delulu is its zero-runtime npm footprint, 40–60 ms cold-start execution (sub-2 ms steady-state), forward secrecy with replay defense, and explainable rule-and-graph anomaly engine that operates entirely without black-box machine learning.
 
 ### Architecture
 Ctrl+Alt+Delulu is structured around four tightly integrated, offline software layers built natively on Node.js 24.11.1 and OpenSSL 3.5.4:
@@ -46,14 +46,14 @@ Ctrl+Alt+Delulu is structured around four tightly integrated, offline software l
 The demonstration walks through clean setup, authorized owner reads, post-quantum ML-KEM-768 protected reads, immediate device revocation and new device re-enrolment, key rotation with 5-node cutoff enforcement, crash recovery mid-revoke via `SIGKILL`, audit hash-chain verification with `bin/verify_log.cjs`, protected messaging with replay rejection and concurrency locking, and live explainable lateral-movement detection across practice and synthetic attack datasets.
 
 **Observed outcome:**
-The automated validator achieves 20/20 checks with zero information leakage. Benchmarks confirm 40–60 ms cold-start execution (mean 44.7 ms for read/revoke, ~58.8 ms for audit; sub-2 ms steady-state in-memory operations), 44/44 on a self-written synthetic attack set (not an independent accuracy measure); 0 false alerts on 1,000 self-generated benign events, and 85/85 passing unit, hardening, and messaging tests.
+The automated Track 4 Toolkit validator achieves 22/22 PASS checks (Local scenario passed) with zero information leakage. Benchmarks confirm 40–60 ms cold-start execution (mean 44.7 ms for read/revoke, ~58.8 ms for audit; sub-2 ms steady-state in-memory operations), 44/44 on a self-written synthetic attack set (not an independent accuracy measure); 0 false alerts on 1,000 self-generated benign events, and 88 passing automated tests across test categories (75 unit & hardening tests, 4 application-level dispatch integration tests, and 9 post-quantum messaging & process-level CLI tests).
 
 ### Explicitly Unimplemented Features (By Architectural Design)
 The following protocols/features are deliberately not implemented, using simpler and fully audited alternatives:
 - **SLH-DSA (FIPS 205)**: Excluded in favor of NIST FIPS 204 ML-DSA-65 (compact 3.3 KB signatures vs. 17+ KB).
 - **Hybrid Classical + Post-Quantum Key Exchange**: Excluded in favor of native NIST FIPS 203 ML-KEM-768 with AES-256-GCM envelope encryption without classical ECDH legacy wrappers.
 - **Double Ratchet / PQXDH**: Excluded; we implement per-session ephemeral ML-KEM-768 + ML-DSA-65 signed prekeys + AES-256-GCM without continuous symmetric/asymmetric ratcheting.
-- **Merkle Tree Logs**: Excluded in favor of canonical SHA-256 hash chains with periodic ML-DSA-65 digital signatures for O(1) tail verification.
+- **Merkle Tree Logs**: Excluded in favor of canonical SHA-256 hash chains with periodic ML-DSA-65 digital signatures (sequential verification with periodic checkpoints rather than Merkle inclusion proof tree overhead).
 - **Hybrid Logical Clocks (HLC)**: Excluded in favor of collector-monotonic ordering with bounded skew ($\pm 5,000$ ms) and uncertainty flagging ($\pm 500$ ms).
 
 <div style="page-break-before: always;"></div>

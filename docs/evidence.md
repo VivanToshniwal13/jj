@@ -130,7 +130,7 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
   - **SLH-DSA (FIPS 205):** We selected lattice-based ML-DSA-65 (FIPS 204) for its compact signature size (3,309 bytes vs. 17+ KB for SLH-DSA) and sub-millisecond verification speed.
   - **Hybrid KEM:** We implement native post-quantum NIST FIPS 203 ML-KEM-768 with AES-256-GCM envelope encryption without classical ECDH hybrid wrappers, minimizing legacy cryptographic complexity.
   - **Double Ratchet / PQXDH:** We implement per-session ephemeral ML-KEM-768 + ML-DSA-65 signed prekeys + AES-256-GCM forward-secret messaging without continuous symmetric/asymmetric ratcheting complexity.
-  - **Merkle tree log:** We utilize an append-only canonical SHA-256 hash-chained log with periodic NIST FIPS 204 ML-DSA-65 digital signatures, which provides strict append-order enforcement and O(1) tail verification without Merkle inclusion proof tree overhead.
+  - **Merkle tree log:** We utilize an append-only canonical SHA-256 hash-chained log with periodic NIST FIPS 204 ML-DSA-65 digital signatures, which provides strict append-order enforcement and sequential checkpoint verification without Merkle inclusion proof tree overhead.
   - **Hybrid Logical Clocks (HLC):** We utilize collector-monotonic ordering with bounded clock skew ($\pm 5,000$ ms) and explicit uncertainty flags for events within $\pm 500$ ms, avoiding complex distributed HLC synchronization dependencies.
 
 - **Detector blind spots:**

@@ -272,6 +272,43 @@ function validateStringId(val, name, maxLen = MAX_ID_LEN) {
   return val;
 }
 
+// Parse and wrap recipient ephemeral prekey for process-boundary compatibility & guaranteed lifecycle cleanup
+function normalizeEphemeralPrekey(request) {
+  const prekey = request.recipient_ephemeral_prekey;
+  if (prekey && (prekey.ephemeralPrivateKey || prekey.destroyed)) {
+    return prekey;
+  }
+
+  const derB64 = request.recipient_ephemeral_private_key_b64 ||
+    (prekey && prekey.ephemeralPrivateKeyDerB64) ||
+    request.recipient_ephemeral_private_key;
+
+  if (typeof derB64 === 'string') {
+    let keyObj;
+    if (derB64.includes('BEGIN')) {
+      keyObj = crypto.createPrivateKey(derB64);
+    } else {
+      keyObj = crypto.createPrivateKey({
+        key: Buffer.from(derB64, 'base64'),
+        format: 'der',
+        type: 'pkcs8'
+      });
+    }
+    return {
+      ephemeralPublicKeyB64: prekey ? prekey.ephemeralPublicKeyB64 : null,
+      signatureB64: prekey ? prekey.signatureB64 : null,
+      ephemeralPrivateKey: keyObj,
+      destroyed: false,
+      destroy() {
+        this.ephemeralPrivateKey = null;
+        this.destroyed = true;
+      }
+    };
+  }
+
+  throw new Error('Missing or invalid recipient ephemeral private key');
+}
+
 // AEAD (AES-256-GCM) Envelope Encryption with Versioned KEK
 function encryptBodyWithKey(body, kek, keyVersion = 1) {
   const dek = crypto.randomBytes(32);
@@ -715,47 +752,55 @@ exports.dispatch = async function dispatch(request) {
         if (!request.packet || typeof request.packet !== 'object') {
           throw new Error('Missing message packet');
         }
-        if (!request.sender_public_key || !request.recipient_ephemeral_prekey) {
-          throw new Error('Missing cryptographic keys for protected receive');
+        if (!request.sender_public_key) {
+          throw new Error('Missing sender public key for protected receive');
         }
 
         const senderDsaPublicKey = typeof request.sender_public_key === 'string'
-          ? crypto.createPublicKey(request.sender_public_key)
+          ? (request.sender_public_key.includes('BEGIN')
+              ? crypto.createPublicKey(request.sender_public_key)
+              : crypto.createPublicKey({ key: Buffer.from(request.sender_public_key, 'base64'), format: 'der', type: 'spki' }))
           : request.sender_public_key;
 
+        const prekeyObj = normalizeEphemeralPrekey(request);
         const engine = new ProtectedMessagingEngine(stateDir);
 
-        let result;
         try {
-          result = engine.receiveMessage(
+          const result = engine.receiveMessage(
             recipient,
-            request.recipient_ephemeral_prekey,
+            prekeyObj,
             senderDsaPublicKey,
             request.packet,
             request.options || {}
           );
+
+          tamperLog.appendRecord(recipient, 'receive_protected_message', {
+            sender: result.sender_id,
+            message_id: result.message_id,
+            sequence_number: result.sequence_number
+          });
+
+          return {
+            status: 'received',
+            message_id: result.message_id,
+            sequence_number: result.sequence_number,
+            sender_id: result.sender_id,
+            recipient_id: result.recipient_id,
+            plaintext: result.plaintext,
+            verified: result.verified
+          };
         } catch (err) {
           tamperLog.appendRecord(recipient, 'receive_protected_message', {
             error: err.message,
             message_id: request.packet.message_id || 'unknown'
           });
           throw err;
+        } finally {
+          // Enforce ephemeral prekey destruction across both success and all error paths
+          if (prekeyObj && typeof prekeyObj.destroy === 'function') {
+            prekeyObj.destroy();
+          }
         }
-
-        tamperLog.appendRecord(recipient, 'receive_protected_message', {
-          sender: result.sender_id,
-          message_id: result.message_id,
-          sequence_number: result.sequence_number
-        });
-        return {
-          status: 'received',
-          message_id: result.message_id,
-          sequence_number: result.sequence_number,
-          sender_id: result.sender_id,
-          recipient_id: result.recipient_id,
-          plaintext: result.plaintext,
-          verified: result.verified
-        };
       }
 
       default:

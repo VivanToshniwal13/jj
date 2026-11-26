@@ -85,5 +85,5 @@
    - **SLH-DSA (FIPS 205)**: Excluded in favor of ML-DSA-65 (compact 3.3 KB signatures vs. 17+ KB).
    - **Hybrid Classical+PQ KEM**: Excluded in favor of native NIST FIPS 203 ML-KEM-768 with AES-256-GCM envelope encryption.
    - **Double Ratchet / PQXDH**: Excluded; we implement per-session ephemeral ML-KEM-768 + ML-DSA-65 signed prekeys + AES-256-GCM forward-secret messaging without continuous symmetric/asymmetric ratcheting.
-   - **Merkle Tree Logs**: Excluded in favor of canonical SHA-256 hash chains with periodic ML-DSA-65 checkpoints for O(1) tail verification.
+   - **Merkle Tree Logs**: Excluded in favor of canonical SHA-256 hash chains with periodic ML-DSA-65 checkpoints (sequential verification with periodic checkpoints rather than Merkle inclusion proof tree overhead).
    - **Hybrid Logical Clocks (HLC)**: Excluded in favor of collector-monotonic ordering with bounded skew ($\pm 5,000$ ms) and uncertainty flagging ($\pm 500$ ms).

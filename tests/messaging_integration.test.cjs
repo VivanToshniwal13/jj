@@ -5,7 +5,27 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { spawn } = require('node:child_process');
 const { dispatch, ProtectedMessagingEngine } = require('../team_app.cjs');
+
+function runServiceProcess(requestObj, stateDir) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('node', [path.join(__dirname, '..', 'track4_service.cjs')], {
+      env: { ...process.env, TRACK4_STATE_DIR: stateDir },
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', d => { stdout += d.toString(); });
+    proc.stderr.on('data', d => { stderr += d.toString(); });
+    proc.on('close', code => {
+      resolve({ code, stdout, stderr });
+    });
+    proc.on('error', reject);
+    proc.stdin.write(JSON.stringify(requestObj));
+    proc.stdin.end();
+  });
+}
 
 test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12)', async (t) => {
   const testStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'track4-integration-test-'));
@@ -75,6 +95,7 @@ test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12
   // 2. Dispatch Replay Rejection
   await t.test('2. Duplicate packet sent to dispatch() is rejected with MESSAGE_REPLAY_DETECTED', async () => {
     const bobPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const bobPrekeyDerB64 = bobPrekey.ephemeralPrivateKeyDerB64;
     const sendResponse = await dispatch({
       op: 'send_protected_message',
       sender: 'alice',
@@ -94,7 +115,7 @@ test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12
       op: 'receive_protected_message',
       recipient: 'bob',
       sender_public_key: alicePubPem,
-      recipient_ephemeral_prekey: bobPrekey,
+      recipient_ephemeral_private_key_b64: bobPrekeyDerB64,
       packet: sendResponse.packet
     });
     assert.equal(firstRec.status, 'received');
@@ -105,7 +126,7 @@ test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12
         op: 'receive_protected_message',
         recipient: 'bob',
         sender_public_key: alicePubPem,
-        recipient_ephemeral_prekey: bobPrekey,
+        recipient_ephemeral_private_key_b64: bobPrekeyDerB64,
         packet: sendResponse.packet
       });
     }, /MESSAGE_REPLAY_DETECTED/);
@@ -152,5 +173,144 @@ test('Protected Messaging Integration with Main Application Dispatch (Goals 9-12
 
     assert.ok(sendEvents.length >= 2);
     assert.ok(receiveEvents.length >= 2);
+  });
+
+  // 5. Enforce Ephemeral Key Cleanup Across All 4 Paths in dispatch()
+  await t.test('5. Enforce ephemeral key cleanup in dispatch finally across success, bad sig, wrong recipient, decrypt fail', async () => {
+    // 5A: Success path destroys key
+    const prekeySuccess = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const sendSuccess = await dispatch({
+      op: 'send_protected_message',
+      sender: 'alice',
+      recipient: 'bob',
+      sender_signing_key: alicePrivPem,
+      recipient_public_key: bobPubPem,
+      recipient_prekey: prekeySuccess,
+      plaintext: 'Payload for success cleanup test'
+    });
+    const recSuccess = await dispatch({
+      op: 'receive_protected_message',
+      recipient: 'bob',
+      sender_public_key: alicePubPem,
+      recipient_ephemeral_prekey: prekeySuccess,
+      packet: sendSuccess.packet
+    });
+    assert.equal(recSuccess.status, 'received');
+    assert.equal(prekeySuccess.destroyed, true);
+    assert.equal(prekeySuccess.ephemeralPrivateKey, null);
+
+    // 5B: Invalid signature path destroys key
+    const prekeyBadSig = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const badSigPacket = JSON.parse(JSON.stringify(sendSuccess.packet));
+    badSigPacket.message_id = 'msg-badsig-001';
+    badSigPacket.signature_b64 = Buffer.from('invalidsignaturebytes').toString('base64');
+    await assert.rejects(async () => {
+      await dispatch({
+        op: 'receive_protected_message',
+        recipient: 'bob',
+        sender_public_key: alicePubPem,
+        recipient_ephemeral_prekey: prekeyBadSig,
+        packet: badSigPacket
+      });
+    }, /SIGNATURE_VERIFICATION_FAILED/);
+    assert.equal(prekeyBadSig.destroyed, true);
+    assert.equal(prekeyBadSig.ephemeralPrivateKey, null);
+
+    // 5C: Wrong recipient path destroys key
+    const prekeyWrongRecipient = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    await assert.rejects(async () => {
+      await dispatch({
+        op: 'receive_protected_message',
+        recipient: 'charlie',
+        sender_public_key: alicePubPem,
+        recipient_ephemeral_prekey: prekeyWrongRecipient,
+        packet: sendSuccess.packet
+      });
+    }, /WRONG_RECIPIENT_ERROR/);
+    assert.equal(prekeyWrongRecipient.destroyed, true);
+    assert.equal(prekeyWrongRecipient.ephemeralPrivateKey, null);
+
+    // 5D: Decryption failure path destroys key
+    const prekeyDecFail = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    // Send packet encapsulated to prekeyDecFail
+    const sendDecFail = await dispatch({
+      op: 'send_protected_message',
+      sender: 'alice',
+      recipient: 'bob',
+      sender_signing_key: alicePrivPem,
+      recipient_public_key: bobPubPem,
+      recipient_prekey: prekeyDecFail,
+      plaintext: 'Decryption fail test'
+    });
+    // Attempt to receive using a DIFFERENT recipient's prekey (charlie's prekey)
+    const charliePrekey = ProtectedMessagingEngine.generateEphemeralPrekey(charlie.dsa.privateKey);
+    await assert.rejects(async () => {
+      await dispatch({
+        op: 'receive_protected_message',
+        recipient: 'bob',
+        sender_public_key: alicePubPem,
+        recipient_ephemeral_prekey: charliePrekey,
+        packet: sendDecFail.packet
+      });
+    }, /WRONG_RECIPIENT_KEY_FAILED/);
+    assert.equal(charliePrekey.destroyed, true);
+    assert.equal(charliePrekey.ephemeralPrivateKey, null);
+  });
+
+  // 6. Real Process-Level CLI Messaging Test over stdin/stdout
+  await t.test('6. Real Process-Level CLI Messaging Test via track4_service.cjs stdin/stdout', async () => {
+    const bobPrekey = ProtectedMessagingEngine.generateEphemeralPrekey(bob.dsa.privateKey);
+    const cliPayload = 'Process boundary confidential synthetic test record #9901';
+
+    // Step A: Send protected message via child process stdin/stdout
+    const sendReq = {
+      op: 'send_protected_message',
+      sender: 'alice',
+      recipient: 'bob',
+      sender_signing_key: alicePrivPem,
+      recipient_public_key: bobPubPem,
+      recipient_prekey: {
+        ephemeralPublicKeyB64: bobPrekey.ephemeralPublicKeyB64,
+        signatureB64: bobPrekey.signatureB64
+      },
+      plaintext: cliPayload,
+      options: { messageId: 'msg-cli-process-001', sequenceNumber: 1 }
+    };
+
+    const sendRes = await runServiceProcess(sendReq, testStateDir);
+    assert.equal(sendRes.code, 0);
+    const sendData = JSON.parse(sendRes.stdout);
+    assert.equal(sendData.status, 'sent');
+    assert.ok(sendData.packet);
+
+    // Step B: Receive protected message via child process stdin/stdout
+    // transferring ephemeral private key securely across the process boundary
+    const receiveReq = {
+      op: 'receive_protected_message',
+      recipient: 'bob',
+      sender_public_key: alicePubPem,
+      recipient_ephemeral_private_key_b64: bobPrekey.ephemeralPrivateKeyDerB64,
+      packet: sendData.packet
+    };
+
+    const receiveRes = await runServiceProcess(receiveReq, testStateDir);
+    assert.equal(receiveRes.code, 0);
+    const receiveData = JSON.parse(receiveRes.stdout);
+    assert.equal(receiveData.status, 'received');
+    assert.equal(receiveData.plaintext, cliPayload);
+    assert.equal(receiveData.verified, true);
+    assert.equal(receiveData.sender_id, 'alice');
+    assert.equal(receiveData.recipient_id, 'bob');
+
+    // Step C: Confirm no private key material is exposed in stdout or stderr
+    assert.ok(!sendRes.stdout.includes('PRIVATE KEY'));
+    assert.ok(!sendRes.stderr.includes('PRIVATE KEY'));
+    assert.ok(!receiveRes.stdout.includes('PRIVATE KEY'));
+    assert.ok(!receiveRes.stderr.includes('PRIVATE KEY'));
+
+    // Step D: Confirm audit.log contains no private key material
+    const auditContent = fs.readFileSync(path.join(testStateDir, 'audit.log'), 'utf8');
+    assert.ok(!auditContent.includes('PRIVATE KEY'));
+    assert.ok(!auditContent.includes(bobPrekey.ephemeralPrivateKeyDerB64));
   });
 });

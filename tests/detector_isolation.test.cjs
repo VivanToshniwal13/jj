@@ -260,4 +260,99 @@ test('Detector Functional Logic: Out-of-order, Clock Skew, Lateral Movement & Ap
     const classification = results.classifications.find(c => c.event_id === 'evt-isolated');
     assert.equal(classification.label, 'isolated_denial');
   });
+
+  await t.test('Every alert contains required structured fields and MITRE tags', () => {
+    const rawEvents = [
+      // 1. Role change without approval -> RULE_UNAPPROVED_ROLE_CHANGE
+      {
+        event_id: 'evt-test-role',
+        event_time_utc: '2026-01-15T09:00:01.000Z',
+        received_time_utc: '2026-01-15T09:00:01.100Z',
+        source_clock_offset_ms: 0,
+        actor: 'user-malicious',
+        source_service: 'identity-service',
+        target_service: 'identity-service',
+        action: 'role_change',
+        role_before: 'viewer',
+        role_after: 'security-admin',
+        outcome: 'allow',
+        approval_id: '',
+        session_id: 'sess-role',
+        correlation_id: 'flow-role'
+      },
+      // 2. Out of scope access -> RULE_OUT_OF_SCOPE_ACCESS
+      {
+        event_id: 'evt-test-scope',
+        event_time_utc: '2026-01-15T09:02:00.000Z',
+        received_time_utc: '2026-01-15T09:02:00.100Z',
+        source_clock_offset_ms: 0,
+        actor: 'user-alex',
+        source_service: 'portal',
+        target_service: 'classified-records',
+        action: 'read',
+        role_before: 'report-reader',
+        role_after: 'report-reader',
+        outcome: 'allow',
+        approval_id: 'change-100',
+        session_id: 'sess-scope',
+        correlation_id: 'flow-scope'
+      },
+      // 3. Lateral movement traversal -> RULE_LATERAL_MOVEMENT_TRAVERSAL
+      {
+        event_id: 'evt-test-lat1',
+        event_time_utc: '2026-01-15T09:03:00.000Z',
+        received_time_utc: '2026-01-15T09:03:00.100Z',
+        source_clock_offset_ms: 0,
+        actor: 'user-traversal',
+        source_service: 'reports',
+        target_service: 'billing',
+        action: 'read',
+        role_before: 'user',
+        role_after: 'user',
+        outcome: 'deny',
+        session_id: 'sess-lat',
+        correlation_id: 'flow-lat'
+      },
+      {
+        event_id: 'evt-test-lat2',
+        event_time_utc: '2026-01-15T09:03:02.000Z',
+        received_time_utc: '2026-01-15T09:03:02.100Z',
+        source_clock_offset_ms: 0,
+        actor: 'user-traversal',
+        source_service: 'billing',
+        target_service: 'archive',
+        action: 'read',
+        role_before: 'user',
+        role_after: 'user',
+        outcome: 'deny',
+        session_id: 'sess-lat',
+        correlation_id: 'flow-lat'
+      }
+    ];
+
+    const results = detector.detect(rawEvents);
+    assert.ok(results.alerts.length >= 3);
+
+    for (const al of results.alerts) {
+      assert.ok(typeof al.actor === 'string' && al.actor.length > 0, 'actor must be non-empty string');
+      assert.ok(typeof al.source_service === 'string' && al.source_service.length > 0, 'source_service must be non-empty string');
+      assert.ok(typeof al.target_service === 'string' && al.target_service.length > 0, 'target_service must be non-empty string');
+      assert.ok(Array.isArray(al.path), 'path must be an array');
+      assert.ok(Array.isArray(al.event_ids) && al.event_ids.length > 0, 'event_ids must be non-empty array');
+      assert.ok(typeof al.rule_id === 'string' && al.rule_id.length > 0, 'rule_id must be non-empty string');
+      assert.ok(typeof al.severity === 'string' && al.severity.length > 0, 'severity must be non-empty string');
+      assert.ok(typeof al.reason === 'string' && al.reason.length > 0, 'reason must be non-empty string');
+      assert.ok(typeof al.time_to_alert_ms === 'number' && !isNaN(al.time_to_alert_ms), 'time_to_alert_ms must be a number');
+      assert.ok(typeof al.mitre === 'string' && al.mitre.length > 0, 'mitre must be non-empty string');
+
+      if (al.rule_id === 'RULE_UNAPPROVED_ROLE_CHANGE') {
+        assert.equal(al.path.length, 0, 'path must be [] for role change');
+        assert.ok(typeof al.from_role === 'string' && al.from_role.length > 0, 'from_role must be present for role change');
+        assert.ok(typeof al.to_role === 'string' && al.to_role.length > 0, 'to_role must be present for role change');
+        assert.equal(al.mitre, 'T1098');
+      } else {
+        assert.ok(al.path.length > 0, 'path must be non-empty for non-role-change alert');
+      }
+    }
+  });
 });

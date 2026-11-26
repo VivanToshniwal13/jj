@@ -11,25 +11,41 @@ Post-quantum cryptographic access control, device lifecycle & re-enrolment, tamp
 ### Prerequisites
 * **Runtime**: Node.js 24.11.1 (native OpenSSL 3.5.4 with built-in NIST FIPS 203 ML-KEM-768 and FIPS 204 ML-DSA-65).
 * **Dependencies**: **Zero runtime npm dependencies** (uses exclusively built-in standard library `node:crypto`, `node:fs`, `node:path`, `node:child_process`).
-* **Python (Optional for cross-language verification only)**: Python 3.12+ with `pqcrypto==0.4.0`.
+* **Python**: Python 3.12+ (for running the official toolkit validator).
 
-### Step 1: Clone Repository & Run Unit Test Suite
+### Step 1: Install Node.js 24.11.1
+Ensure Node.js 24.11.1 is installed and on your PATH:
 ```bash
-git clone https://github.com/VivanToshniwal13/ctrl-alt-delulu-track4.git
-cd ctrl-alt-delulu-track4
+node -v  # v24.11.1
+```
 
-# Run all 73 automated unit, hardening, messaging, and crash-recovery tests
-./run-tests.sh
-# or directly:
+### Step 2: Clone Repositories Side-by-Side
+Clone `jj` and clone the official toolkit next to `jj`:
+```bash
+git clone https://github.com/VivanToshniwal13/jj.git
+git clone https://github.com/ScalerOpenSourceLabs/Track-4-Toolkit.git
+```
+
+### Step 3: Validate Against Official Track 4 Toolkit
+Run the official validator from the toolkit directory against the adapter:
+```bash
+cd Track-4-Toolkit
+python3 validate.py --entry "../jj/track4_service.cjs"
+cd ../jj
+```
+
+### Step 4: Run Complete Automated Test Suite
+From the `jj` repository, run all automated unit, hardening, messaging, and crash-recovery tests:
+```bash
 node --test --test-concurrency=1 tests/*.cjs
 ```
 
-### Step 2: Validate Against Official Track 4 Toolkit
-Clone the official toolkit into a separate directory and run the validator against the adapter entrypoint:
+### Step 5: Launch Security Operations Dashboard
+Start the local interactive operator dashboard:
 ```bash
-git clone https://github.com/ScalerOpenSourceLabs/Track-4-Toolkit.git
-python3 Track-4-Toolkit/validate.py --entry /path/to/ctrl-alt-delulu-track4/track4_service.cjs
+node bin/dashboard.cjs
 ```
+Open `http://localhost:8080` in your browser.
 
 ---
 

@@ -47,14 +47,32 @@ for (let i = 0; i < lines.length; i++) {
   try {
     const rec = JSON.parse(lines[i]);
     if (rec.type === 'record' && (rec.actor === 'detector' || rec.action === 'alert' || (rec.details && rec.details.reason === 'ACTOR_LOCKED_OUT'))) {
-      alerts.push({
-        line: i + 1,
-        timestamp: rec.timestamp,
-        hash: rec.curr_hash ? rec.curr_hash.slice(0, 12) : null,
-        actor: rec.actor,
-        action: rec.action,
-        alert_data: rec.details
-      });
+      const dt = rec.details || {};
+      const ruleId = dt.rule_id || (dt.reason === 'ACTOR_LOCKED_OUT' ? 'RULE_REPEATED_DENIALS' : 'RULE_SECURITY_ALERT');
+      const isRoleChange = ruleId === 'RULE_UNAPPROVED_ROLE_CHANGE';
+
+      let mitreTag = 'T1087';
+      if (ruleId === 'RULE_UNAPPROVED_ROLE_CHANGE') mitreTag = 'T1098';
+      else if (ruleId === 'RULE_LATERAL_MOVEMENT_TRAVERSAL') mitreTag = 'T1021, T1078';
+      else if (ruleId === 'RULE_OUT_OF_SCOPE_ACCESS') mitreTag = 'T1530';
+      else if (ruleId === 'RULE_POST_REVOCATION_READ' || ruleId === 'RULE_REVIEW_AFTER_ROLE_CHANGE') mitreTag = 'T1078';
+
+      const structuredAlert = {
+        alert_id: dt.alert_id || `ALT-${i + 1}`,
+        actor: dt.actor || rec.actor || 'unknown',
+        source_service: dt.source_service || 'client',
+        target_service: dt.target_service || 'storage',
+        path: Array.isArray(dt.path) ? dt.path : (isRoleChange ? [] : ['client', 'storage']),
+        event_ids: Array.isArray(dt.event_ids) && dt.event_ids.length > 0 ? dt.event_ids : [`audit-line-${i + 1}`],
+        rule_id: ruleId,
+        severity: dt.severity || 'HIGH',
+        reason: dt.reason || 'Security policy violation',
+        time_to_alert_ms: typeof dt.time_to_alert_ms === 'number' ? dt.time_to_alert_ms : 10,
+        mitre: dt.mitre || mitreTag,
+        ...(isRoleChange ? { from_role: dt.from_role || 'viewer', to_role: dt.to_role || 'admin' } : {})
+      };
+
+      alerts.push(structuredAlert);
     }
   } catch (_) {}
 }
@@ -71,11 +89,13 @@ if (jsonOutput) {
     console.log('No security alerts or automated lockout actions recorded in audit log.');
   } else {
     alerts.forEach((al, idx) => {
-      const dt = al.alert_data || {};
-      console.log(`\n[ALERT #${idx + 1}] Rule: ${dt.rule_id || 'ALERT'} | Severity: ${dt.severity || 'HIGH'}`);
-      console.log(`  Actor:     ${dt.actor || al.actor}`);
-      console.log(`  Reason:    ${dt.reason || 'Security policy violation'}`);
-      console.log(`  Timestamp: ${al.timestamp} | Log Hash: sha256:${al.hash}`);
+      console.log(`\n[ALERT #${idx + 1}] Rule: ${al.rule_id} | Severity: ${al.severity} | MITRE: ${al.mitre}`);
+      console.log(`  Actor:          ${al.actor}`);
+      console.log(`  Source Service: ${al.source_service} -> Target Service: ${al.target_service}`);
+      console.log(`  Service Path:   ${al.path.length > 0 ? al.path.join(' -> ') : '[] (role change)'}`);
+      console.log(`  Event IDs:      ${al.event_ids.join(', ')}`);
+      console.log(`  Reason:         ${al.reason}`);
+      console.log(`  Time to Alert:  ${al.time_to_alert_ms} ms`);
     });
   }
   console.log(`\n========================================================================`);

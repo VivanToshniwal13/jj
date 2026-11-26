@@ -98,6 +98,32 @@ Status values: `measured`, `partial`, `not tested`, `not supported`.
   - **Isolation Verification:** `tests/detector_isolation.test.cjs` confirms `lib/detector.cjs` contains zero references to `labels.csv` and never accesses ground truth at runtime.
 - **Methodology Disclaimer:** The 22 events in the practice dataset demonstrate functional capability only (role checks, lateral graph paths, and clock skew). A 22-event dataset cannot establish statistical confidence or production baseline accuracy. All baseline service edges are configured externally in `detector-config.json`.
 
+### MITRE ATT&CK Tag Mapping
+
+| Detection Rule | Description | MITRE Technique Tag | Technique Name |
+| :--- | :--- | :--- | :--- |
+| `RULE_UNAPPROVED_ROLE_CHANGE` | Escalation to privileged role without change-control approval | `T1098` | Account Manipulation |
+| `RULE_REVIEW_AFTER_ROLE_CHANGE` | Sensitive resource read following unapproved role escalation | `T1098` | Account Manipulation |
+| `RULE_OUT_OF_SCOPE_ACCESS` | Accessing resource target outside approved change scope | `T1530` | Data from Cloud Storage |
+| `RULE_LATERAL_MOVEMENT_TRAVERSAL` | Multi-hop traversal across unexpected service edges | `T1021, T1078` | Remote Services & Valid Accounts |
+| `RULE_REPEATED_DENIALS` | Consecutive access denials across multiple attempts ($\ge 3$) | `T1087` | Account Discovery |
+| `RULE_ASSET_ENUMERATION` | Repeatedly probing non-existent resource IDs ($\ge 3$) | `T1087` | Account Discovery |
+| `RULE_MALFORMED_INJECTION` | Prototype pollution or path traversal injection patterns | `T1087` | Account Discovery |
+| `RULE_EXCESSIVE_CLOCK_SKEW` | Source clock discrepancy exceeding $\pm 5,000$ ms | `T1078` | Valid Accounts (Defense Evasion) |
+
+### Architectural Decisions & Detector Limitations
+
+- **Not implemented (by choice):**
+  - **SLH-DSA (FIPS 205):** We selected lattice-based ML-DSA-65 (FIPS 204) for its compact signature size (3,309 bytes vs. 17+ KB for SLH-DSA) and sub-millisecond verification speed.
+  - **Hybrid KEM:** We implement native post-quantum NIST FIPS 203 ML-KEM-768 with AES-256-GCM envelope encryption without classical ECDH hybrid wrappers, minimizing legacy cryptographic complexity.
+  - **Merkle tree log:** We utilize an append-only canonical SHA-256 hash-chained log with periodic NIST FIPS 204 ML-DSA-65 digital signatures, which provides strict append-order enforcement and O(1) tail verification without Merkle inclusion proof tree overhead.
+  - **Hybrid Logical Clocks (HLC):** We utilize collector-monotonic ordering with bounded clock skew ($\pm 5,000$ ms) and explicit uncertainty flags for events within $\pm 500$ ms, avoiding complex distributed HLC synchronization dependencies.
+
+- **Detector blind spots:**
+  - **Slow low-and-slow spread:** Attacks where hops between unexpected services occur over days or weeks exceeding sliding window correlation intervals.
+  - **Single-hop access to a sensitive service:** An adversary who executes a single unauthorized read without traversing intermediate unexpected edges (isolated single denials are deliberately kept low-severity to eliminate false positives on routine operational errors).
+  - **Skew beyond $\pm 5$ s:** Source clocks drifting more than $5,000$ ms from the collector cannot have deterministic relative order inferred and are rejected as excessive clock skew.
+
 ### Measurement 7: Device Loss, Re-enrolment & 5-Node Key Cutoff Rejection (Goals 1 & 2)
 - **Claim:** When a user loses a device, revoking it blocks that device across all cluster nodes while peers remain completely unaffected; enrolling a newly authorized device key restores full access. During key rotation, all nodes honor a documented cutoff time: in-flight requests initiated prior to cutoff complete, while any request initiated post-cutoff is rejected across all nodes.
 - **Setup & Workload:** Evaluated in `tests/re_enrolment.test.cjs`:

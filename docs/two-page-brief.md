@@ -4,7 +4,7 @@
 
 **Project:** Ctrl+Alt+Delulu – Trust, but Verify  
 **Team:** Ctrl+Alt+Delulu  
-**Repository and commit:** [https://github.com/VivanToshniwal13/ctrl-alt-delulu-track4](https://github.com/VivanToshniwal13/ctrl-alt-delulu-track4) / `dev`  
+**Repository and commit:** [https://github.com/VivanToshniwal13/jj](https://github.com/VivanToshniwal13/jj) on main  
 **Demo entry point:** `python3 Track-4-Toolkit/validate.py --entry track4_service.cjs` & `bin/detect.cjs`
 
 ### Unique Selling Proposition (USP)
@@ -33,20 +33,20 @@ Ctrl+Alt+Delulu is structured around four tightly integrated, offline software l
 
 1. **Adapter Transport & Authorization**: `track4_service.cjs` and `team_app.cjs` process process-per-request JSON over stdin/stdout. Identity is asserted by the caller, and the engine enforces asset ownership, disabling, and revocation before invoking any cryptographic operations.
 2. **Post-Quantum Cryptographic Engine**: Content bodies are protected via AES-256-GCM envelope encryption using per-asset Data Encryption Keys (DEKs) wrapped by a versioned Key Encryption Key (KEK). Post-quantum handshakes execute native ML-KEM-768 public key encapsulation with standard 22-byte SPKI reconstruction, generating 32-byte shared secrets and HMAC-SHA-256 proofs.
-3. **Device Lifecycle & Protected Messaging**: Device enrolment uses NIST FIPS 204 ML-DSA-65 signatures (library-level, not enforced by the adapter). Lost devices are revoked across all nodes while peer users remain unaffected. Protected messaging (`lib/messaging.cjs`) delivers forward secrecy via per-session signed ephemeral ML-KEM-768 prekeys, replay defense keying on (sender, message_id, sequence), and authenticated recipient identity binding. Safe alert-only default prevents caller assertion DOS.
+3. **Device Lifecycle & Protected Messaging**: Device enrolment uses NIST FIPS 204 ML-DSA-65 signatures (library-level, not enforced by the adapter). Lost devices are revoked across all nodes while peer users remain unaffected. Protected messaging (`lib/messaging.cjs`) delivers forward secrecy via per-session ephemeral ML-KEM-768 + ML-DSA-65 signed prekeys + AES-256-GCM, replay defense keying on (sender, message_id, sequence), and authenticated recipient identity binding. Safe alert-only default prevents caller assertion DOS.
 4. **Crash Recovery & Hash-Chained Auditing**: State mutations persist atomically via `fsync` and temporary file renaming. All operations append to `audit.log`, a canonical JSON Lines ledger hash-chained via SHA-256 and periodically signed with NIST FIPS 204 ML-DSA-65 checkpoints.
 5. **Explainable Detection Engine**: `lib/detector.cjs` ingests events, normalizes clock skew, matches role changes against structured change-control approvals, and traverses service graphs to detect multi-hop lateral movement across distinct service targets.
 
 ### Accessible Five-Minute Fallback Video Link
 
-**Video link:** `https://youtu.be/PLACEHOLDER_CTRL_ALT_DELULU_TRACK4` (Accessible unlisted link)  
+**Video link:** VIDEO_LINK_TODO  
 **Duration:** 05:00 minutes  
 **Access checked:** 2026-11-26 (Confirmed open access without permission prompts)
 
 The demonstration walks through clean setup, authorized owner reads, post-quantum ML-KEM-768 protected reads, immediate device revocation and new device re-enrolment, key rotation with 5-node cutoff enforcement, crash recovery mid-revoke via `SIGKILL`, audit hash-chain verification with `bin/verify_log.cjs`, protected messaging with replay rejection, and live explainable lateral-movement detection across practice and synthetic attack datasets.
 
 **Observed outcome:**
-The automated validator achieves 20/20 checks with zero information leakage. Benchmarks confirm sub-50ms cold-start execution on macOS/Linux hosts, 100% recall on 50+ diverse attack scenarios, 73/73 passing unit and hardening tests, and 0 false alerts across 1,000 synthetic routine events.
+The automated validator achieves 20/20 checks with zero information leakage. Benchmarks confirm sub-50ms cold-start execution on macOS/Linux hosts, 44/44 on a self-written synthetic attack set (not an independent accuracy measure); 0 false alerts on 1,000 self-generated benign events, and 74/74 passing unit, hardening, and messaging tests.
 
 <div style="page-break-before: always;"></div>
 

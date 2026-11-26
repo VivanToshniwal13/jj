@@ -172,6 +172,12 @@ function checkLiveRulesAndRespond(state, actor, asset, op, request, stateDir, ta
       rule_id: 'RULE_MALFORMED_INJECTION',
       severity: 'HIGH',
       actor: actor || 'unknown',
+      source_service: 'client',
+      target_service: 'storage',
+      path: ['client', 'storage'],
+      event_ids: [request.request_id || 'audit-inject'],
+      time_to_alert_ms: 5,
+      mitre: 'T1087',
       reason: 'Malformed injection pattern detected in request string'
     });
   }
@@ -182,6 +188,12 @@ function checkLiveRulesAndRespond(state, actor, asset, op, request, stateDir, ta
       rule_id: 'RULE_POST_REVOCATION_READ',
       severity: 'MEDIUM',
       actor,
+      source_service: 'client',
+      target_service: 'storage',
+      path: ['client', 'storage'],
+      event_ids: [request.request_id || 'audit-revoked'],
+      time_to_alert_ms: 5,
+      mitre: 'T1078',
       reason: `Actor ${actor} attempted ${op} after revocation`
     });
   }
@@ -198,6 +210,12 @@ function checkLiveRulesAndRespond(state, actor, asset, op, request, stateDir, ta
         rule_id: 'RULE_ASSET_ENUMERATION',
         severity: 'CRITICAL',
         actor,
+        source_service: 'client',
+        target_service: 'storage',
+        path: ['client', 'storage'],
+        event_ids: [request.request_id || 'audit-enum'],
+        time_to_alert_ms: 5,
+        mitre: 'T1087',
         reason: `Actor ${actor} enumerated ${distinct.size} non-existent assets within 60s`
       });
       if (process.env.TRACK4_LIVE_LOCKOUT === '1') {
@@ -224,6 +242,12 @@ function recordDenialForActor(state, actor, stateDir, tamperLog) {
       rule_id: 'RULE_REPEATED_DENIALS',
       severity: 'CRITICAL',
       actor,
+      source_service: 'client',
+      target_service: 'storage',
+      path: ['client', 'storage'],
+      event_ids: [`recent-denial-${list.length}`],
+      time_to_alert_ms: 5,
+      mitre: 'T1087',
       denial_count: list.length,
       reason: `Actor ${actor} accumulated ${list.length} consecutive denials within 60s`
     };

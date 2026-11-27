@@ -1455,9 +1455,7 @@
 
     // Sign out handler
     document.getElementById('btn-sidebar-signout').addEventListener('click', () => {
-      document.cookie = 'trustvault_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      localStorage.removeItem('trustvault_user');
-      window.location.href = '/login';
+      window.location.reload();
     });
 
     // Profile pill update

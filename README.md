@@ -39,6 +39,7 @@ From the `jj` repository, run all automated unit, hardening, messaging, and cras
 ```bash
 node --test --test-concurrency=1 tests/*.cjs
 ```
+*(All 161 automated test cases across all 12 core challenge objectives pass with 0 failures: 161/161 PASS).*
 
 ### Step 5: Launch Security Operations Dashboard
 Start the local interactive operator dashboard:

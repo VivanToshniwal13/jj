@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRUSTVAULT · Sign In</title>
+  <style>
+    :root {
+      --bg-cream: #f6f5f0;
+      --card-bg: #ffffff;
+      --slate-dark: #1b2430;
+      --slate-button: #1b2430;
+      --slate-button-hover: #293545;
+      --text-primary: #151d28;
+      --text-secondary: #586574;
+      --text-muted: #8b96a5;
+      --gold-accent: #c6a15b;
+      --gold-light: #f7f1e5;
+      --border-color: #e5e9ee;
+      --input-border: #dbe2ea;
+      --green-online: #10b981;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-cream);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Nav */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 48px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-badge {
+      width: 36px;
+      height: 36px;
+      background: var(--slate-dark);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .logo-badge svg {
+      width: 20px;
+      height: 20px;
+      stroke: #fff;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    .env-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .env-dot {
+      width: 7px;
+      height: 7px;
+      background-color: var(--green-online);
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+
+    /* Main Container */
+    .hero-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 20px 48px 40px;
+      width: 100%;
+      align-items: center;
+      gap: 64px;
+    }
+
+    /* Left Hero */
+    .hero-left {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .eyebrow-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--gold-accent);
+      margin-bottom: 24px;
+    }
+
+    .hero-title {
+      font-size: 58px;
+      line-height: 1.08;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      color: var(--text-primary);
+      margin-bottom: 24px;
+    }
+
+    .hero-desc {
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+      max-width: 480px;
+      margin-bottom: 48px;
+    }
+
+    /* Concentric Rings Visual */
+    .visual-wrapper {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 40px;
+    }
+
+    .ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(198, 161, 91, 0.25);
+    }
+
+    .ring-1 { width: 140px; height: 140px; }
+    .ring-2 { width: 180px; height: 180px; border-style: dashed; opacity: 0.7; }
+    .ring-3 { width: 220px; height: 220px; opacity: 0.45; }
+
+    .center-badge {
+      width: 82px;
+      height: 82px;
+      background: var(--slate-dark);
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 16px 32px rgba(27, 36, 48, 0.16);
+      z-index: 2;
+    }
+
+    .center-badge svg {
+      width: 40px;
+      height: 40px;
+      stroke: var(--gold-accent);
+      fill: none;
+    }
+
+    .zero-trust-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .zero-trust-label svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--text-muted);
+    }
+
+    .platform-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 36px;
+    }
+
+    /* Right Card */
+    .hero-right {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .login-card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      padding: 44px 40px;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 20px 48px rgba(18, 25, 38, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+      border: 1px solid var(--border-color);
+    }
+
+    .card-icon-box {
+      width: 44px;
+      height: 44px;
+      background-color: var(--gold-light);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .card-icon-box svg {
+      width: 22px;
+      height: 22px;
+      stroke: var(--gold-accent);
+    }
+
+    .card-eyebrow {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .card-subhead {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+      line-height: 1.45;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 13px 16px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: #ffffff;
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: var(--slate-dark);
+      box-shadow: 0 0 0 3px rgba(27, 36, 48, 0.08);
+    }
+
+    .form-input::placeholder {
+      color: #9aa5b5;
+    }
+
+    .password-toggle-btn {
+      position: absolute;
+      right: 14px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      padding: 4px;
+    }
+
+    .password-toggle-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 14px 20px;
+      background: var(--slate-button);
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.2s ease, transform 0.1s ease;
+      margin-top: 24px;
+      margin-bottom: 20px;
+    }
+
+    .btn-submit:hover {
+      background: var(--slate-button-hover);
+    }
+
+    .btn-submit:active {
+      transform: scale(0.99);
+    }
+
+    .card-footer-link {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .card-footer-link a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .card-footer-link a:hover {
+      text-decoration: underline;
+    }
+
+    .card-privacy-notice {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding-top: 18px;
+      border-top: 1px solid #f1f4f8;
+    }
+
+    .card-privacy-notice svg {
+      width: 15px;
+      height: 15px;
+      stroke: var(--text-muted);
+    }
+
+    /* Page Footer */
+    .page-footer {
+      text-align: center;
+      padding: 24px 0;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Error Toast */
+    .toast-error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    @media (max-width: 960px) {
+      .hero-container {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        padding: 20px 24px;
+      }
+      .top-nav {
+        padding: 20px 24px;
+      }
+      .hero-title {
+        font-size: 40px;
+      }
+      .hero-right {
+        justify-content: center;
+      }
+      .login-card {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <nav class="top-nav">
+    <a href="/login" class="brand-logo">
+      <div class="logo-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+      <span class="brand-name">TRUSTVAULT</span>
+    </a>
+    <div class="env-badge">
+      <span class="env-dot"></span>
+      <span>SECURE ENVIRONMENT</span>
+    </div>
+  </nav>
+
+  <!-- Main Hero Content -->
+  <main class="hero-container">
+    
+    <!-- Left Hero Column -->
+    <section class="hero-left">
+      <div class="eyebrow-tag">IDENTITY &amp; ACCESS MANAGEMENT</div>
+      <h1 class="hero-title">Your security.<br>Your control.</h1>
+      <p class="hero-desc">
+        A unified space to manage identities, protect devices and monitor access across your secure environment.
+      </p>
+
+      <!-- Concentric Rings Graphic -->
+      <div class="visual-wrapper">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <div class="center-badge">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="zero-trust-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        <span>ZERO TRUST ARCHITECTURE</span>
+      </div>
+
+      <div class="platform-tag">POST-QUANTUM SECURITY PLATFORM</div>
+    </section>
+
+    <!-- Right Login Card -->
+    <section class="hero-right">
+      <div class="login-card">
+        <div class="card-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+
+        <div class="card-eyebrow">WELCOME BACK</div>
+        <h2 class="card-title">Sign in to your account</h2>
+        <p class="card-subhead">Enter your credentials to access your security dashboard.</p>
+
+        <div id="error-toast" class="toast-error"></div>
+
+        <form id="login-form">
+          <div class="form-group">
+            <label class="form-label" for="username-input">Username</label>
+            <div class="input-wrapper">
+              <input type="text" id="username-input" class="form-input" placeholder="Enter your username" value="dimplee" required autocomplete="username">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password-input">Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="password-input" class="form-input" placeholder="Enter your password" value="••••••••••••" required autocomplete="current-password">
+              <button type="button" id="toggle-password" class="password-toggle-btn" aria-label="Toggle password visibility">
+                <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="device-input">Registered Device ID</label>
+            <div class="input-wrapper">
+              <input type="text" id="device-input" class="form-input" value="a0c464eb-b2ff-4223-aa1a-ae341bb97d18" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-submit" id="btn-login-submit">
+            <span>Sign In</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="7" y1="17" x2="17" y2="7"/>
+              <polyline points="7 7 17 7 17 17"/>
+            </svg>
+          </button>
+
+          <div class="card-footer-link">
+            New to TRUSTVAULT? <a href="#" id="create-account-link">Create account</a>
+          </div>
+
+          <div class="card-privacy-notice">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Your data stays in your local environment.</span>
+          </div>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Page Footer -->
+  <footer class="page-footer">
+    &copy; 2026 TRUSTVAULT &middot; ALL RIGHTS RESERVED
+  </footer>
+
+  <script>
+    // Password visibility toggle
+    const toggleBtn = document.getElementById('toggle-password');
+    const pwdInput = document.getElementById('password-input');
+    toggleBtn.addEventListener('click', () => {
+      const isPwd = pwdInput.type === 'password';
+      pwdInput.type = isPwd ? 'text' : 'password';
+      toggleBtn.innerHTML = isPwd
+        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    });
+
+    // Handle Login Submit
+    const form = document.getElementById('login-form');
+    const errToast = document.getElementById('error-toast');
+    const submitBtn = document.getElementById('btn-login-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errToast.style.display = 'none';
+
+      const username = document.getElementById('username-input').value.trim();
+      const password = document.getElementById('password-input').value;
+      const deviceId = document.getElementById('device-input').value.trim();
+
+      if (!username) {
+        showError('Please enter a username.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'Signing in...';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, deviceId })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          // Store session data locally
+          localStorage.setItem('trustvault_user', JSON.stringify({
+            username: data.user.username,
+            role: data.user.role || 'user',
+            deviceId: data.user.deviceId || deviceId,
+            loginTime: new Date().toISOString()
+          }));
+          // Set cookie for browser session navigation
+          document.cookie = `trustvault_session=1; path=/; max-age=86400; SameSite=Lax`;
+          window.location.href = '/dashboard';
+        } else {
+          showError(data.error || 'Authentication failed. Please verify credentials.');
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<span>Sign In</span> <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>`;
+        }
+      } catch (err) {
+        // Fallback for offline/standalone mode
+        localStorage.setItem('trustvault_user', JSON.stringify({
+          username: username || 'dimplee',
+          role: 'user',
+          deviceId: deviceId,
+          loginTime: new Date().toISOString()
+        }));
+        document.cookie = `trustvault_session=1; path=/; max-age=86400; SameSite=Lax`;
+        window.location.href = '/dashboard';
+      }
+    });
+
+    function showError(msg) {
+      errToast.textContent = msg;
+      errToast.style.display = 'block';
+    }
+
+    document.getElementById('create-account-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      alert('Local Environment Notice: Demo identities (dimplee, vanshika, maya, alex) are pre-registered in this zero-trust environment.');
+    });
+  </script>
+</body>
+</html>

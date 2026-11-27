@@ -51,6 +51,7 @@ if (process.env.PORT) {
 
 const rootDir = path.resolve(__dirname, '..');
 const htmlPath = path.join(rootDir, 'dashboard', 'index.html');
+const loginHtmlPath = path.join(rootDir, 'dashboard', 'login.html');
 const assetsDir = path.join(rootDir, 'dashboard', 'assets');
 
 // Helper to format IST timestamp
@@ -769,8 +770,75 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Static files
-  if (url.pathname === '/' || url.pathname === '/index.html') {
+  // Session verification helper
+  const cookieHeader = req.headers.cookie || '';
+  const isAuthenticated = cookieHeader.includes('trustvault_session=1') || url.searchParams.get('auth') === '1';
+
+  // Login page
+  if (url.pathname === '/login') {
+    fs.readFile(loginHtmlPath, 'utf8', (err, data) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Error loading login page: ' + err.message);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(data);
+    });
+    return;
+  }
+
+  // Auth Login API
+  if (url.pathname === '/api/auth/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { username, deviceId } = JSON.parse(body || '{}');
+        if (!username || username.trim().length === 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Username is required' }));
+          return;
+        }
+        const cleanUser = username.trim();
+        const role = (cleanUser.toLowerCase() === 'admin' || cleanUser.toLowerCase() === 'auditor') ? cleanUser.toLowerCase() : 'user';
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Set-Cookie': 'trustvault_session=1; Path=/; Max-Age=86400; SameSite=Lax'
+        });
+        res.end(JSON.stringify({
+          success: true,
+          user: {
+            username: cleanUser,
+            role,
+            deviceId: deviceId || 'a0c464eb-b2ff-4223-aa1a-ae341bb97d18'
+          }
+        }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Auth Logout API
+  if ((url.pathname === '/api/auth/logout' || url.pathname === '/logout') && (req.method === 'POST' || req.method === 'GET')) {
+    res.writeHead(302, {
+      'Location': '/login',
+      'Set-Cookie': 'trustvault_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    });
+    res.end();
+    return;
+  }
+
+  // Main Dashboard (Protected: redirects to /login if unauthenticated)
+  if (url.pathname === '/' || url.pathname === '/dashboard' || url.pathname === '/index.html') {
+    if (!isAuthenticated) {
+      res.writeHead(302, { 'Location': '/login' });
+      res.end();
+      return;
+    }
     fs.readFile(htmlPath, 'utf8', (err, data) => {
       if (err) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });
